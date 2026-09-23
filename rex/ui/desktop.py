@@ -30,6 +30,24 @@ WORKBOOK_MODE_OPTIONS = {
     "Por amostra — uma planilha para cada amostra": WORKBOOK_MODE_PER_SAMPLE,
 }
 
+TK_SCALING_AT_96_DPI = 96 / 72
+
+
+def calculate_linux_ui_scale(tk_scaling: float) -> float:
+    """Converte a escala do Tk em um fator adequado ao CustomTkinter no Linux."""
+    return max(1.0, min(2.5, float(tk_scaling) / TK_SCALING_AT_96_DPI))
+
+
+def calculate_window_geometry(screen_width: int, screen_height: int) -> tuple[int, int, int, int]:
+    """Calcula uma janela ampla, centralizada e compatível com telas menores."""
+    usable_width = max(640, int(screen_width * 0.90))
+    usable_height = max(600, int(screen_height * 0.88))
+    window_width = min(1200, usable_width)
+    window_height = min(820, usable_height)
+    offset_x = max(0, (screen_width - window_width) // 2)
+    offset_y = max(0, (screen_height - window_height) // 2)
+    return window_width, window_height, offset_x, offset_y
+
 
 def open_file_or_folder_in_os(path: Path | str):
     p = Path(path)
@@ -51,9 +69,18 @@ class REXDesktopApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
+        if platform.system() == "Linux":
+            ui_scale = calculate_linux_ui_scale(self.tk.call("tk", "scaling"))
+            ctk.set_widget_scaling(ui_scale)
+            ctk.set_window_scaling(ui_scale)
+
         self.title("REX — MEV-EDS Report Extractor")
-        self.geometry("980x760")
-        self.minsize(860, 680)
+        width, height, offset_x, offset_y = calculate_window_geometry(
+            self.winfo_screenwidth(),
+            self.winfo_screenheight(),
+        )
+        self.geometry(f"{width}x{height}+{offset_x}+{offset_y}")
+        self.minsize(min(960, width), min(680, height))
 
         self.docx_path_var = ctk.StringVar(value="")
         self.out_dir_var = ctk.StringVar(value="")
@@ -67,6 +94,18 @@ class REXDesktopApp(ctk.CTk):
 
         self._build_ui()
         self._apply_treeview_style()
+        self.after(0, self._maximize_on_desktop)
+
+    def _maximize_on_desktop(self):
+        """Abre a janela aproveitando a área útil do desktop atual."""
+        try:
+            if platform.system() == "Windows":
+                self.state("zoomed")
+            elif platform.system() == "Linux":
+                self.attributes("-zoomed", True)
+        except tk.TclError:
+            # O geometry responsivo definido no construtor permanece como fallback.
+            pass
 
     def _build_ui(self):
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
