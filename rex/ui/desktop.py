@@ -16,6 +16,7 @@ import customtkinter as ctk
 import pandas as pd
 
 from rex.core.engine import EDSExtractorEngine
+from rex.workbook import WORKBOOK_MODE_CONSOLIDATED, WORKBOOK_MODE_PER_SAMPLE
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -23,6 +24,11 @@ ctk.set_default_color_theme("blue")
 COLOR_ACCENT = "#7c6af7"
 COLOR_ACCENT_HOVER = "#9d8fff"
 COLOR_BG_CARD = "#212130"
+
+WORKBOOK_MODE_OPTIONS = {
+    "Consolidada — todos os dados em uma planilha": WORKBOOK_MODE_CONSOLIDATED,
+    "Por amostra — uma planilha para cada amostra": WORKBOOK_MODE_PER_SAMPLE,
+}
 
 
 def open_file_or_folder_in_os(path: Path | str):
@@ -52,6 +58,7 @@ class REXDesktopApp(ctk.CTk):
         self.docx_path_var = ctk.StringVar(value="")
         self.out_dir_var = ctk.StringVar(value="")
         self.status_var = ctk.StringVar(value="Selecione um laudo .docx para iniciar.")
+        self.workbook_mode_var = ctk.StringVar(value=next(iter(WORKBOOK_MODE_OPTIONS)))
 
         self.last_excel_path: Path | None = None
         self.last_csv_path: Path | None = None
@@ -116,7 +123,7 @@ class REXDesktopApp(ctk.CTk):
             font=ctk.CTkFont(size=12),
             height=36
         )
-        self.d_entry.grid(row=3, column=0, padx=(16, 8), pady=(0, 16), sticky="ew")
+        self.d_entry.grid(row=3, column=0, padx=(16, 8), pady=(0, 10), sticky="ew")
 
         btn_browse_dir = ctk.CTkButton(
             card_files,
@@ -127,7 +134,24 @@ class REXDesktopApp(ctk.CTk):
             fg_color="#3a3a4d",
             hover_color="#4d4d66"
         )
-        btn_browse_dir.grid(row=3, column=1, padx=(0, 16), pady=(0, 16))
+        btn_browse_dir.grid(row=3, column=1, padx=(0, 16), pady=(0, 10))
+
+        mode_lbl = ctk.CTkLabel(
+            card_files,
+            text="Estrutura da Pasta de Trabalho Excel:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        )
+        mode_lbl.grid(row=4, column=0, padx=(16, 8), pady=(4, 4), sticky="w")
+
+        self.workbook_mode_menu = ctk.CTkOptionMenu(
+            card_files,
+            variable=self.workbook_mode_var,
+            values=list(WORKBOOK_MODE_OPTIONS),
+            height=36,
+        )
+        self.workbook_mode_menu.grid(
+            row=5, column=0, columnspan=2, padx=16, pady=(0, 16), sticky="ew"
+        )
 
         card_files.columnconfigure(0, weight=1)
 
@@ -328,6 +352,7 @@ class REXDesktopApp(ctk.CTk):
             return
 
         out_dir = self.out_dir_var.get().strip() or str(Path(docx).parent)
+        workbook_mode = WORKBOOK_MODE_OPTIONS[self.workbook_mode_var.get()]
 
         self.btn_run.configure(state="disabled", text="⏳  Extraindo Dados (Aguarde)...")
         self.btn_open_excel.configure(state="disabled")
@@ -339,9 +364,13 @@ class REXDesktopApp(ctk.CTk):
         self.log_box.delete("1.0", "end")
         self.status_var.set("Executando extração com RapidOCR em memória...")
 
-        threading.Thread(target=self._worker, args=(docx, out_dir), daemon=True).start()
+        threading.Thread(
+            target=self._worker,
+            args=(docx, out_dir, workbook_mode),
+            daemon=True,
+        ).start()
 
-    def _worker(self, docx_path: str, out_dir: str):
+    def _worker(self, docx_path: str, out_dir: str, workbook_mode: str):
         t0 = time.time()
         engine = EDSExtractorEngine()
 
@@ -350,6 +379,7 @@ class REXDesktopApp(ctk.CTk):
             df_dados, df_amostras = engine.process(
                 docx_path=docx_path,
                 output_dir=out_dir,
+                workbook_mode=workbook_mode,
                 status_callback=lambda msg: self._log(msg)
             )
 

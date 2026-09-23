@@ -14,6 +14,7 @@ from PIL import Image
 os.environ.setdefault("ORT_DISABLE_TELEMETRY", "1")
 
 from rapidocr_onnxruntime import RapidOCR
+from rex.workbook import WORKBOOK_MODE_CONSOLIDATED, write_excel_workbook
 
 
 class EDSExtractorEngine:
@@ -59,7 +60,8 @@ class EDSExtractorEngine:
         self,
         docx_path: str | Path,
         output_dir: Optional[str | Path] = None,
-        status_callback: Optional[Callable[[str], None]] = None
+        status_callback: Optional[Callable[[str], None]] = None,
+        workbook_mode: str = WORKBOOK_MODE_CONSOLIDATED,
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Executa o pipeline completo de extração do documento .docx.
@@ -75,6 +77,7 @@ class EDSExtractorEngine:
             raise FileNotFoundError(f"Arquivo não encontrado: {docx_path}")
 
         out_path = Path(output_dir) if output_dir else docx_path.parent
+        out_path.mkdir(parents=True, exist_ok=True)
         _log(f"Lendo documento em memória: {docx_path.name}")
 
         w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -180,9 +183,7 @@ class EDSExtractorEngine:
         xlsx_file = out_path / "amostras_organizadas_completas.xlsx"
         csv_file = out_path / "dados_extraidos.csv"
 
-        with pd.ExcelWriter(xlsx_file, engine="openpyxl") as writer:
-            df_dados.to_excel(writer, index=False, sheet_name="DadosCompletos")
-            df_resumo.to_excel(writer, index=False, sheet_name="AmostrasDetectadas")
+        write_excel_workbook(df_dados, df_resumo, xlsx_file, workbook_mode)
 
         df_dados.to_csv(csv_file, index=False, encoding="utf-8-sig")
 

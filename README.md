@@ -55,6 +55,9 @@ python -m rex extract "laudo_amostras.docx"
 
 # Ou especificando pasta de saída:
 python -m rex extract "laudo_amostras.docx" -o ./resultados
+
+# Gerar uma planilha individual para cada amostra no mesmo arquivo Excel:
+python -m rex extract "laudo_amostras.docx" --workbook-mode per-sample
 ```
 
 ### 2. Interface Web Local (Recomendada para Linux/Servidores)
@@ -117,6 +120,11 @@ rex/
 ## 📊 Estrutura dos Dados Exportados
 
 Os arquivos Excel (`.xlsx`) e CSV gerados contêm as seguintes colunas padronizadas:
+
+Por padrão, o Excel mantém as planilhas consolidadas `DadosCompletos` e
+`AmostrasDetectadas`. Com `--workbook-mode per-sample`, a primeira planilha contém
+o resumo das amostras detectadas e cada amostra recebe uma planilha individual com
+todos os seus pontos, séries e medições químicas.
 
 | Coluna | Descrição | Exemplo |
 | :--- | :--- | :--- |

@@ -29,7 +29,11 @@ def run_extract(args):
     engine = EDSExtractorEngine()
 
     try:
-        df_dados, df_amostras = engine.process(docx_path, output_dir=output_dir)
+        df_dados, df_amostras = engine.process(
+            docx_path,
+            output_dir=output_dir,
+            workbook_mode=args.workbook_mode,
+        )
         elapsed = time.time() - t0
 
         print("\n" + "=" * 65)
@@ -88,6 +92,12 @@ def main():
     parser_extract = subparsers.add_parser("extract", help="Extrair dados de um laudo .docx")
     parser_extract.add_argument("docx", help="Caminho para o arquivo de laudo .docx")
     parser_extract.add_argument("-o", "--output", help="Diretório de saída para o Excel e CSV (opcional)")
+    parser_extract.add_argument(
+        "--workbook-mode",
+        choices=("consolidated", "per-sample"),
+        default="consolidated",
+        help="Estrutura do Excel: consolidada ou uma planilha por amostra",
+    )
     parser_extract.set_defaults(func=run_extract)
 
     # Comando 'web'

@@ -13,6 +13,8 @@ import webbrowser
 import time
 import os
 
+from rex.workbook import WORKBOOK_MODE_CONSOLIDATED, WORKBOOK_MODES
+
 MAX_REQUEST_BODY_BYTES = 16 * 1024
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
 
@@ -314,6 +316,13 @@ HTML_PAGE = """<!DOCTYPE html>
         <label>Selecione o Laudo Word (.docx):</label>
         <select id="docxSelect"></select>
       </div>
+      <div class="field-group">
+        <label>Estrutura da Pasta de Trabalho Excel:</label>
+        <select id="workbookMode">
+          <option value="consolidated">Consolidada — todos os dados em uma planilha</option>
+          <option value="per-sample">Por amostra — uma planilha para cada amostra</option>
+        </select>
+      </div>
       <button id="btnRun" class="btn-run" onclick="startExtraction()">
         <span>▶</span> <span>Iniciar Extração Completa</span>
       </button>
@@ -431,6 +440,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     async function startExtraction() {
       const docx = document.getElementById('docxSelect').value;
+      const workbookMode = document.getElementById('workbookMode').value;
       if (!docx) return alert('Selecione um arquivo .docx primeiro.');
 
       const btn = document.getElementById('btnRun');
@@ -445,7 +455,7 @@ HTML_PAGE = """<!DOCTYPE html>
         const res = await fetch('/api/extract', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: docx })
+          body: JSON.stringify({ filename: docx, workbook_mode: workbookMode })
         });
         const data = await res.json();
 
@@ -598,6 +608,9 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError("Corpo JSON inválido.")
             docx_file = resolve_docx_path(self.target_dir, data.get("filename"))
+            workbook_mode = data.get("workbook_mode", WORKBOOK_MODE_CONSOLIDATED)
+            if workbook_mode not in WORKBOOK_MODES:
+                raise ValueError("Modo de pasta de trabalho inválido.")
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             self._send_json(400, {"error": str(exc)})
             return
@@ -607,7 +620,11 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
 
         engine = EDSExtractorEngine()
         try:
-            df_dados, df_amostras = engine.process(docx_file, output_dir=self.target_dir)
+            df_dados, df_amostras = engine.process(
+                docx_file,
+                output_dir=self.target_dir,
+                workbook_mode=workbook_mode,
+            )
             elapsed = round(time.time() - t0, 1)
 
             preview_records = dataframe_records_for_json(df_dados)
