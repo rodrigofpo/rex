@@ -6,6 +6,7 @@ Funciona em qualquer navegador moderno sem necessidade de dependências do siste
 import http.server
 import socketserver
 import json
+import logging
 import urllib.parse
 from pathlib import Path
 import threading
@@ -14,9 +15,11 @@ import time
 import os
 
 from rex.workbook import WORKBOOK_MODE_CONSOLIDATED, WORKBOOK_MODES
+from rex.errors import REXError
 
 MAX_REQUEST_BODY_BYTES = 16 * 1024
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
+logger = logging.getLogger(__name__)
 
 
 def resolve_docx_path(target_dir: Path | str, filename: object) -> Path:
@@ -290,6 +293,20 @@ HTML_PAGE = """<!DOCTYPE html>
       background: rgba(76, 175, 144, 0.25);
     }
     .hidden { display: none !important; }
+    .feedback {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+    }
+    .feedback.error {
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    .feedback.success {
+      color: var(--success);
+      border-color: var(--success);
+    }
     .loader {
       display: inline-block;
       width: 16px;
@@ -326,6 +343,7 @@ HTML_PAGE = """<!DOCTYPE html>
       <button id="btnRun" class="btn-run" onclick="startExtraction()">
         <span>▶</span> <span>Iniciar Extração Completa</span>
       </button>
+      <div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>
     </div>
 
     <div id="statsSection" class="grid-stats hidden">
@@ -353,9 +371,9 @@ HTML_PAGE = """<!DOCTYPE html>
 
     <div class="card">
       <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('log')">📋 Log em Tempo Real</button>
-        <button class="tab-btn" onclick="switchTab('preview')">📊 Prévia dos Dados</button>
-        <button class="tab-btn" onclick="switchTab('elements')">🧪 Elementos Químicos</button>
+        <button class="tab-btn active" onclick="switchTab('log', this)">📋 Log em Tempo Real</button>
+        <button class="tab-btn" onclick="switchTab('preview', this)">📊 Prévia dos Dados</button>
+        <button class="tab-btn" onclick="switchTab('elements', this)">🧪 Elementos Químicos</button>
       </div>
 
       <div id="tab-log" class="tab-content active">
@@ -405,29 +423,34 @@ HTML_PAGE = """<!DOCTYPE html>
 
   <script>
     async function loadFiles() {
-      const res = await fetch('/api/files');
-      const files = await res.json();
       const sel = document.getElementById('docxSelect');
-      sel.innerHTML = '';
-      if (files.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = 'Nenhum arquivo .docx encontrado no diretório atual';
-        sel.appendChild(opt);
-        return;
+      try {
+        const res = await fetch('/api/files');
+        if (!res.ok) throw new Error('Falha ao listar os arquivos.');
+        const files = await res.json();
+        sel.innerHTML = '';
+        if (files.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'Nenhum arquivo .docx encontrado no diretório atual';
+          sel.appendChild(opt);
+          return;
+        }
+        files.forEach(f => {
+          const opt = document.createElement('option');
+          opt.value = f;
+          opt.textContent = f;
+          sel.appendChild(opt);
+        });
+      } catch (err) {
+        showFeedback('Não foi possível listar os arquivos. Verifique o servidor local e recarregue a página.', 'error');
       }
-      files.forEach(f => {
-        const opt = document.createElement('option');
-        opt.value = f;
-        opt.textContent = f;
-        sel.appendChild(opt);
-      });
     }
 
-    function switchTab(tabId) {
+    function switchTab(tabId, button) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      event.target.classList.add('active');
+      button.classList.add('active');
       document.getElementById('tab-' + tabId).classList.add('active');
     }
 
@@ -438,13 +461,24 @@ HTML_PAGE = """<!DOCTYPE html>
       box.scrollTop = box.scrollHeight;
     }
 
+    function showFeedback(message, kind) {
+      const feedback = document.getElementById('feedback');
+      feedback.textContent = message;
+      feedback.className = 'feedback ' + kind;
+    }
+
     async function startExtraction() {
       const docx = document.getElementById('docxSelect').value;
       const workbookMode = document.getElementById('workbookMode').value;
-      if (!docx) return alert('Selecione um arquivo .docx primeiro.');
+      if (!docx) {
+        showFeedback('Selecione um arquivo .docx primeiro.', 'error');
+        return;
+      }
 
       const btn = document.getElementById('btnRun');
       btn.disabled = true;
+      document.getElementById('feedback').className = 'feedback hidden';
+      document.getElementById('downloadBar').classList.add('hidden');
       btn.innerHTML = '<span class="loader"></span> <span>Extraindo Dados (RapidOCR em execução)...</span>';
 
       const logBox = document.getElementById('logBox');
@@ -459,11 +493,13 @@ HTML_PAGE = """<!DOCTYPE html>
         });
         const data = await res.json();
 
-        if (data.error) {
-          appendLog(`ERRO: ${data.error}`);
-          alert('Erro durante a extração: ' + data.error);
+        if (!res.ok || data.error) {
+          const message = data.error || 'Não foi possível concluir a extração.';
+          appendLog(`ERRO: ${message}`);
+          showFeedback(message, 'error');
         } else {
           appendLog(`Sucesso! ${data.samples_count} amostras e ${data.rows_count} medições extraídas.`);
+          showFeedback(`Arquivos gerados: ${data.excel_filename} e ${data.csv_filename}`, 'success');
 
           document.getElementById('statSamples').textContent = data.samples_count;
           document.getElementById('statPoints').textContent = data.points_count;
@@ -508,6 +544,7 @@ HTML_PAGE = """<!DOCTYPE html>
         }
       } catch (err) {
         appendLog(`Erro de conexão: ${err.message}`);
+        showFeedback('Não foi possível conectar ao servidor local. Verifique se ele continua em execução.', 'error');
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>▶</span> <span>Iniciar Extração Completa</span>';
@@ -640,13 +677,18 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
                 "rows_count": len(df_dados),
                 "points_count": points_count,
                 "elapsed": elapsed,
+                "excel_filename": engine.last_export_paths.excel.name,
+                "csv_filename": engine.last_export_paths.csv.name,
                 "elements": elements,
                 "preview": preview_records
             }
             self._send_json(200, response)
 
-        except Exception as exc:
-            self._send_json(500, {"error": str(exc)})
+        except REXError as exc:
+            self._send_json(422, {"error": str(exc)})
+        except Exception:
+            logger.exception("Falha inesperada durante a extração web")
+            self._send_json(500, {"error": "Falha inesperada. Consulte o log do servidor."})
 
 
 def launch_web_app(port: int = 8085, open_browser: bool = True, target_dir: Path | str = None):

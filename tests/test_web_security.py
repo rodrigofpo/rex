@@ -1,16 +1,54 @@
 """Testes das fronteiras de segurança da interface web local."""
 
 import json
+import io
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from email.message import Message
 
 import pandas as pd
+import pytest
 
-from rex.ui.web import dataframe_records_for_json, resolve_docx_path
+from rex.errors import InvalidDocumentError
+from rex.ui.web import ExtractorWebHandler, dataframe_records_for_json, resolve_docx_path
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_status", "expected_message"),
+    [
+        (InvalidDocumentError("DOCX inválido"), 422, "DOCX inválido"),
+        (RuntimeError("detalhe interno"), 500, "Falha inesperada"),
+    ],
+)
+def test_web_extraction_reports_controlled_errors(
+    tmp_path: Path, monkeypatch, failure, expected_status, expected_message
+):
+    (tmp_path / "laudo.docx").write_bytes(b"test")
+    body = json.dumps({"filename": "laudo.docx"}).encode("utf-8")
+    handler = object.__new__(ExtractorWebHandler)
+    handler.target_dir = tmp_path
+    handler.path = "/api/extract"
+    handler.rfile = io.BytesIO(body)
+    handler.headers = Message()
+    handler.headers["Host"] = "localhost:8085"
+    handler.headers["Content-Type"] = "application/json"
+    handler.headers["Content-Length"] = str(len(body))
+    responses = []
+    handler._send_json = lambda status, payload: responses.append((status, payload))
+
+    def fail_processing(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr("rex.core.engine.EDSExtractorEngine.process", fail_processing)
+    handler.do_POST()
+
+    assert responses[0][0] == expected_status
+    assert expected_message in responses[0][1]["error"]
+    assert "detalhe interno" not in responses[0][1]["error"]
 
 
 class ResolveDocxPathTests(unittest.TestCase):

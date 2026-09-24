@@ -392,6 +392,8 @@ class REXDesktopApp(ctk.CTk):
 
         out_dir = self.out_dir_var.get().strip() or str(Path(docx).parent)
         workbook_mode = WORKBOOK_MODE_OPTIONS[self.workbook_mode_var.get()]
+        self.last_excel_path = None
+        self.last_csv_path = None
 
         self.btn_run.configure(state="disabled", text="⏳  Extraindo Dados (Aguarde)...")
         self.btn_open_excel.configure(state="disabled")
@@ -474,7 +476,11 @@ class REXDesktopApp(ctk.CTk):
                 ))
 
         self.tabview.set("📊 Prévia dos Dados")
-        messagebox.showinfo("Extração Concluída", f"Foram extraídas com sucesso {n_samples} amostras ({n_rows} medições)!\n\nArquivos salvos em:\n{self.last_excel_path}")
+        messagebox.showinfo(
+            "Extração Concluída",
+            f"Foram extraídas {n_samples} amostras ({n_rows} medições).\n\n"
+            f"Excel: {self.last_excel_path}\nCSV: {self.last_csv_path}",
+        )
 
     def _on_extraction_error(self, err_msg: str):
         self.progress_bar.stop()

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from rex.errors import ExportError
 from rex.models import ExportPaths, ExtractionResult
-from rex.workbook import WORKBOOK_MODE_CONSOLIDATED, write_excel_workbook
+from rex.workbook import WORKBOOK_MODE_CONSOLIDATED, safe_spreadsheet_frame, write_excel_workbook
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,9 @@ def export_result(
                 temporary_excel,
                 workbook_mode,
             )
-            result.data.to_csv(temporary_csv, index=False, encoding="utf-8-sig")
+            safe_spreadsheet_frame(result.data).to_csv(
+                temporary_csv, index=False, encoding="utf-8-sig"
+            )
 
             with zipfile.ZipFile(temporary_excel) as workbook_archive:
                 damaged_member = workbook_archive.testzip()

@@ -13,6 +13,22 @@ _INVALID_SHEET_CHARACTERS = re.compile(r"[\\/*?:\[\]]")
 _MAX_SHEET_NAME_LENGTH = 31
 
 
+def safe_spreadsheet_text(value: object) -> object:
+    """Impede que texto de um laudo seja interpretado como fórmula."""
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + value
+    if isinstance(value, str) and value.startswith(("\t", "\r", "\n")):
+        return "'" + value
+    return value
+
+
+def safe_spreadsheet_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    """Prepara valores e cabeçalhos para Excel e CSV sem alterar o DataFrame original."""
+    safe_frame = frame.apply(lambda column: column.map(safe_spreadsheet_text))
+    safe_frame.columns = [safe_spreadsheet_text(name) for name in frame.columns]
+    return safe_frame
+
+
 def validate_workbook_mode(workbook_mode: str) -> str:
     if workbook_mode not in WORKBOOK_MODES:
         available = ", ".join(WORKBOOK_MODES)
@@ -45,6 +61,8 @@ def write_excel_workbook(
 ) -> Path:
     """Grava o workbook consolidado ou separado em uma aba por amostra."""
     workbook_mode = validate_workbook_mode(workbook_mode)
+    df_dados = safe_spreadsheet_frame(df_dados)
+    df_resumo = safe_spreadsheet_frame(df_resumo)
     xlsx_path = Path(xlsx_path)
     xlsx_path.parent.mkdir(parents=True, exist_ok=True)
 

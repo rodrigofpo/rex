@@ -73,6 +73,30 @@ def test_csv_stays_consolidated_with_per_sample_workbook(tmp_path: Path):
         workbook.close()
 
 
+def test_exported_text_is_not_interpreted_as_spreadsheet_formula(tmp_path: Path):
+    result = ExtractionResult(
+        data=pd.DataFrame({"Amostra": ["=1+1"], "TipoLinha": ["@SUM(A1:A2)"], "Ponto": [2]}),
+        samples=pd.DataFrame({"SampleName": ["=1+1"]}),
+    )
+
+    paths = export_result(result, tmp_path, source_path="laudo.docx")
+
+    assert result.data.loc[0, "Amostra"] == "=1+1"
+    csv_data = pd.read_csv(paths.csv)
+    assert csv_data.loc[0, "Amostra"] == "'=1+1"
+    assert csv_data.loc[0, "TipoLinha"] == "'@SUM(A1:A2)"
+    assert csv_data.loc[0, "Ponto"] == 2
+
+    workbook = load_workbook(paths.excel, read_only=True)
+    try:
+        data_sheet = workbook["DadosCompletos"]
+        assert data_sheet["A2"].value == "'=1+1"
+        assert data_sheet["A2"].data_type == "s"
+        assert workbook["AmostrasDetectadas"]["A2"].value == "'=1+1"
+    finally:
+        workbook.close()
+
+
 def test_failed_export_preserves_previous_files(tmp_path: Path, monkeypatch):
     previous_excel = tmp_path / "laudo_REX-20260923-120000-000000.xlsx"
     previous_csv = tmp_path / "laudo_REX-20260923-120000-000000.csv"
