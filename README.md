@@ -35,11 +35,11 @@ cd rex
 python3 -m venv .venv
 source .venv/bin/activate  # No Windows: .venv\Scripts\activate
 
-# Instalar dependências
-pip install -r requirements.txt
+# Instalar o pacote e suas dependências
+python -m pip install .
 
-# Ou instalar como pacote editável:
-pip install -e .
+# Para desenvolvimento, instalar em modo editável com testes:
+python -m pip install -e ".[test]"
 ```
 
 ---
@@ -84,6 +84,26 @@ python -m rex gui
 
 *(No Fedora/RHEL, certifique-se de ter o pacote `python3-tkinter` instalado: `sudo dnf install python3-tkinter`)*.
 
+### Distribuição sem instalar Python
+
+Os arquivos compactados de cada sistema operacional são gerados no workflow de
+release e ficam disponíveis na página [Releases](https://github.com/rodrigofpo/rex/releases)
+após uma publicação bem-sucedida. Baixe o arquivo da sua plataforma, descompacte
+**a pasta inteira** e execute o programa dentro dela:
+
+```text
+Windows x64: rex-windows-x64/rex-windows-x64.exe --help
+Linux x64:   rex-linux-x64/rex-linux-x64 --help
+macOS Intel: rex-macos-x64/rex-macos-x64 --help
+macOS ARM:   rex-macos-arm64/rex-macos-arm64 --help
+```
+
+Os mesmos comandos aceitam `extract`, `web` e `gui`. A interface `web` usa o
+navegador local.
+O release inclui também wheel (`.whl`) e pacote fonte (`.tar.gz`) para quem
+prefere instalar em um ambiente Python. O projeto não publica automaticamente
+no PyPI. O arquivo `SHA256SUMS.txt` permite conferir os downloads.
+
 ---
 
 ## 📐 Arquitetura do Pipeline
@@ -114,7 +134,7 @@ rex/
 ├── docs/                       # Documentação detalhada e diagramas
 ├── tests/                      # Testes automatizados
 ├── pyproject.toml              # Configuração moderna de build (PEP 621)
-├── requirements.txt            # Dependências travadas
+├── requirements.txt            # Lista de dependências com versões mínimas
 └── README.md
 ```
 
