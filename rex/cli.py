@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from rex import __version__
 from rex.core.engine import EDSExtractorEngine
+from rex.errors import REXError
 
 
 def run_extract(args):
@@ -21,7 +22,7 @@ def run_extract(args):
     print("=" * 65)
     print(f"  REX v{__version__} — MEV-EDS REPORT EXTRACTOR")
     print("=" * 65)
-    print(f"Arquivo de entrada: {docx_path.name} ({docx_path.stat().st_size / (1024*1024):.1f} MB)")
+    print(f"Arquivo de entrada: {docx_path.name} ({docx_path.stat().st_size / (1024 * 1024):.1f} MB)")
     print(f"Diretório de saída: {output_dir.resolve()}")
     print("-" * 65)
 
@@ -33,6 +34,7 @@ def run_extract(args):
             docx_path,
             output_dir=output_dir,
             workbook_mode=args.workbook_mode,
+            status_callback=print,
         )
         elapsed = time.time() - t0
 
@@ -44,17 +46,21 @@ def run_extract(args):
         print(f"Total de Linhas Químicas:  {len(df_dados)}")
 
         if not df_dados.empty:
-            elementos = sorted(df_dados['Elemento'].unique().tolist())
+            elementos = sorted(map(str, df_dados["Elemento"].unique().tolist()))
             pontos = df_dados['Ponto'].nunique()
             print(f"Elementos Detectados:     {', '.join(elementos)}")
             print(f"Total de Pontos Únicos:   {pontos}")
             print("\nPrévia dos primeiros registros:")
-            print(df_dados[['Amostra', 'Serie', 'Ponto', 'Elemento', 'PercentualPeso', 'PercentualAtomico']].head(10).to_string(index=False))
+            print(df_dados[['Amostra', 'Serie', 'Ponto', 'Elemento', 'PercentualPeso', 'PercentualAtomico']].head(
+                10).to_string(index=False))
 
         print("\n[OK] Extração finalizada com sucesso!")
 
-    except Exception as e:
-        print(f"\n[ERRO CRÍTICO] Falha durante a extração: {e}")
+    except REXError as exc:
+        print(f"\n[ERRO] {exc}")
+        sys.exit(1)
+    except Exception as exc:
+        print(f"\n[ERRO CRÍTICO] Falha inesperada durante a extração: {exc}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
@@ -65,7 +71,7 @@ def run_web(args):
     launch_web_app(port=args.port, open_browser=not args.no_browser)
 
 
-def run_desktop(args):
+def run_desktop(_args):
     try:
         from rex.ui.desktop import launch_desktop_app
         launch_desktop_app()

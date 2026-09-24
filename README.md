@@ -17,6 +17,8 @@
 * **🌐 Interface Web Local Zero-Dependency**: Dashboard local moderno no navegador, compatível instantaneamente com qualquer Linux, Windows e macOS sem necessidade de `sudo` ou pacotes gráficos do sistema.
 * **💻 Interface Desktop Nativa**: Opção desktop em `CustomTkinter` com tema escuro, barra de progresso em tempo real e visualização de dados tabulares.
 * **📊 Exportação Dupla**: Gera planilhas Excel (`.xlsx`) com abas estruturadas e arquivos `CSV` em `utf-8-sig`.
+* **🛡️ Validação Preventiva**: Aplica limites de tamanho, conteúdo descompactado, XML, imagens e taxa de compactação antes do processamento.
+* **💾 Exportação Segura**: Valida os novos arquivos antes da substituição e restaura os resultados anteriores se a gravação falhar.
 
 ---
 
