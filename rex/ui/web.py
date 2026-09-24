@@ -523,6 +523,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
 class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
     target_dir = Path.cwd()
+    latest_excel_path: Path | None = None
 
     def log_message(self, format, *args):
         pass
@@ -563,8 +564,8 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(200, sorted(docx_files))
 
         elif parsed.path == "/api/download/excel":
-            excel_path = self.target_dir / "amostras_organizadas_completas.xlsx"
-            if excel_path.is_file():
+            excel_path = self.latest_excel_path
+            if excel_path is not None and excel_path.is_file():
                 self.send_response(200)
                 self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 self.send_header("Content-Disposition", f'attachment; filename="{excel_path.name}"')
@@ -625,6 +626,7 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
                 output_dir=self.target_dir,
                 workbook_mode=workbook_mode,
             )
+            type(self).latest_excel_path = engine.last_export_paths.excel
             elapsed = round(time.time() - t0, 1)
 
             preview_records = dataframe_records_for_json(df_dados)
@@ -651,6 +653,7 @@ def launch_web_app(port: int = 8085, open_browser: bool = True, target_dir: Path
         ExtractorWebHandler.target_dir = Path(target_dir).resolve()
     else:
         ExtractorWebHandler.target_dir = Path.cwd().resolve()
+    ExtractorWebHandler.latest_excel_path = None
 
     print("=" * 65)
     print(f"  REX — INTERFACE WEB LOCAL")

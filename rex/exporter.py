@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import zipfile
+from datetime import datetime
 from pathlib import Path
 
 from rex.errors import ExportError
@@ -17,11 +18,13 @@ logger = logging.getLogger(__name__)
 def export_result(
         result: ExtractionResult,
         output_dir: str | Path,
+        source_path: str | Path,
         workbook_mode: str = WORKBOOK_MODE_CONSOLIDATED,
 ) -> ExportPaths:
     """Grava Excel e CSV sem acoplar persistência ao parser OpenXML/OCR."""
     output_path = Path(output_dir)
-    excel_path = output_path / "amostras_organizadas_completas.xlsx"
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    excel_path = output_path / f"{Path(source_path).stem}_REX-{timestamp}.xlsx"
     csv_path = output_path / "dados_extraidos.csv"
 
     try:

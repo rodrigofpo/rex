@@ -19,7 +19,7 @@ from rex.errors import (
     OCRInitializationError,
 )
 from rex.exporter import export_result
-from rex.models import ExtractionResult
+from rex.models import ExportPaths, ExtractionResult
 from rex.security import DocumentLimits, validate_archive, validate_document_file
 from rex.workbook import WORKBOOK_MODE_CONSOLIDATED
 
@@ -43,6 +43,7 @@ class EDSExtractorEngine:
         self._ocr_factory = ocr_factory
         self._ocr_engine: Any | None = None
         self.limits = limits or DocumentLimits()
+        self.last_export_paths: ExportPaths | None = None
 
     @property
     def ocr_engine(self) -> Any:
@@ -235,12 +236,15 @@ class EDSExtractorEngine:
     ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Mantém a API histórica, orquestrando extração e exportação."""
         document_path = Path(docx_path)
+        self.last_export_paths = None
         result = self.extract(document_path, status_callback=status_callback)
         paths = export_result(
             result,
             output_dir=Path(output_dir) if output_dir else document_path.parent,
+            source_path=document_path,
             workbook_mode=workbook_mode,
         )
+        self.last_export_paths = paths
         self._emit_status("\n[Exportação Concluída]", status_callback)
         self._emit_status(f"  -> Excel: {paths.excel.resolve()}", status_callback)
         self._emit_status(f"  -> CSV:   {paths.csv.resolve()}", status_callback)

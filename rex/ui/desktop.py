@@ -425,8 +425,8 @@ class REXDesktopApp(ctk.CTk):
             elapsed = time.time() - t0
             self.df_dados = df_dados
             self.df_amostras = df_amostras
-            self.last_excel_path = Path(out_dir) / "amostras_organizadas_completas.xlsx"
-            self.last_csv_path = Path(out_dir) / "dados_extraidos.csv"
+            self.last_excel_path = engine.last_export_paths.excel
+            self.last_csv_path = engine.last_export_paths.csv
 
             self.after(0, self._on_extraction_success, elapsed)
 
