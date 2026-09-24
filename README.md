@@ -17,7 +17,7 @@
 * **🌐 Interface Web Local Zero-Dependency**: Dashboard local moderno no navegador, compatível instantaneamente com qualquer Linux, Windows e macOS sem necessidade de `sudo` ou pacotes gráficos do sistema.
 * **💻 Interface Desktop Nativa**: Opção desktop em `CustomTkinter` com tema escuro, barra de progresso em tempo real e visualização de dados tabulares.
 * **📊 Exportação Dupla**: Gera planilhas Excel (`.xlsx`) com abas estruturadas e arquivos `CSV` em `utf-8-sig`.
-  O Excel usa o nome do DOCX seguido de `_REX-AAAAMMDD-HHMMSS-microssegundos.xlsx`; o CSV `dados_extraidos.csv` sempre reúne todas as amostras.
+  Ambos usam o nome do DOCX seguido de `_REX-AAAAMMDD-HHMMSS-microssegundos`, com extensões `.xlsx` e `.csv`. O CSV sempre reúne todas as amostras.
 * **🛡️ Validação Preventiva**: Aplica limites de tamanho, conteúdo descompactado, XML, imagens e taxa de compactação antes do processamento.
 * **💾 Exportação Segura**: Valida os novos arquivos antes da substituição e restaura os resultados anteriores se a gravação falhar.
 
@@ -96,7 +96,7 @@ flowchart LR
     B -->|Tabela EDS| E[Parser Químico]
     D -->|Vínculo Determinístico| E
     E --> F[nome_original_REX-timestamp.xlsx]
-    E --> G[dados_extraidos.csv]
+    E --> G[nome_original_REX-timestamp.csv]
 ```
 
 ### Estrutura do Pacote

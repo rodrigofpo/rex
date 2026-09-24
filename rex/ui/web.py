@@ -524,6 +524,7 @@ HTML_PAGE = """<!DOCTYPE html>
 class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
     target_dir = Path.cwd()
     latest_excel_path: Path | None = None
+    latest_csv_path: Path | None = None
 
     def log_message(self, format, *args):
         pass
@@ -575,8 +576,8 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_error(404, "Arquivo Excel não encontrado.")
 
         elif parsed.path == "/api/download/csv":
-            csv_path = self.target_dir / "dados_extraidos.csv"
-            if csv_path.is_file():
+            csv_path = self.latest_csv_path
+            if csv_path is not None and csv_path.is_file():
                 self.send_response(200)
                 self.send_header("Content-Type", "text/csv; charset=utf-8")
                 self.send_header("Content-Disposition", f'attachment; filename="{csv_path.name}"')
@@ -627,6 +628,7 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
                 workbook_mode=workbook_mode,
             )
             type(self).latest_excel_path = engine.last_export_paths.excel
+            type(self).latest_csv_path = engine.last_export_paths.csv
             elapsed = round(time.time() - t0, 1)
 
             preview_records = dataframe_records_for_json(df_dados)
@@ -654,6 +656,7 @@ def launch_web_app(port: int = 8085, open_browser: bool = True, target_dir: Path
     else:
         ExtractorWebHandler.target_dir = Path.cwd().resolve()
     ExtractorWebHandler.latest_excel_path = None
+    ExtractorWebHandler.latest_csv_path = None
 
     print("=" * 65)
     print(f"  REX — INTERFACE WEB LOCAL")

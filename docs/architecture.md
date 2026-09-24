@@ -40,7 +40,7 @@ flowchart TD
     subgraph Exportação com recuperação de falhas
         RESULT --> TEMP[Arquivos temporários validados]
         TEMP --> EXCEL[nome_original_REX-timestamp.xlsx]
-        TEMP --> CSV[dados_extraidos.csv]
+        TEMP --> CSV[nome_original_REX-timestamp.csv]
     end
 
     style DOCX fill:#7c6af7,stroke:#333,color:#fff

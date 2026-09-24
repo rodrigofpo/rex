@@ -47,7 +47,7 @@ def test_exports_structured_result_without_engine_dependency(tmp_path: Path):
     assert paths.excel.name.startswith("Laudo A_REX-")
     assert paths.excel.name.endswith(".xlsx")
     assert paths.csv.is_file()
-    assert paths.csv.name == "dados_extraidos.csv"
+    assert paths.csv.stem == paths.excel.stem
 
 
 def test_csv_stays_consolidated_with_per_sample_workbook(tmp_path: Path):
@@ -75,7 +75,7 @@ def test_csv_stays_consolidated_with_per_sample_workbook(tmp_path: Path):
 
 def test_failed_export_preserves_previous_files(tmp_path: Path, monkeypatch):
     previous_excel = tmp_path / "laudo_REX-20260923-120000-000000.xlsx"
-    previous_csv = tmp_path / "dados_extraidos.csv"
+    previous_csv = tmp_path / "laudo_REX-20260923-120000-000000.csv"
     previous_excel.write_bytes(b"planilha-anterior")
     previous_csv.write_text("csv-anterior", encoding="utf-8")
     result = ExtractionResult(data=pd.DataFrame(), samples=pd.DataFrame())
@@ -96,7 +96,7 @@ def test_failed_export_preserves_previous_files(tmp_path: Path, monkeypatch):
 
 def test_second_replacement_failure_restores_previous_pair(tmp_path: Path, monkeypatch):
     previous_excel = tmp_path / "laudo_REX-20260923-120000-000000.xlsx"
-    previous_csv = tmp_path / "dados_extraidos.csv"
+    previous_csv = tmp_path / "laudo_REX-20260923-120000-000000.csv"
     previous_excel.write_bytes(b"planilha-anterior")
     previous_csv.write_text("csv-anterior", encoding="utf-8")
     result = ExtractionResult(data=pd.DataFrame({"Amostra": ["A01"]}), samples=pd.DataFrame())

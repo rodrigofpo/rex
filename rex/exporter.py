@@ -24,8 +24,9 @@ def export_result(
     """Grava Excel e CSV sem acoplar persistência ao parser OpenXML/OCR."""
     output_path = Path(output_dir)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    excel_path = output_path / f"{Path(source_path).stem}_REX-{timestamp}.xlsx"
-    csv_path = output_path / "dados_extraidos.csv"
+    output_stem = f"{Path(source_path).stem}_REX-{timestamp}"
+    excel_path = output_path / f"{output_stem}.xlsx"
+    csv_path = output_path / f"{output_stem}.csv"
 
     try:
         output_path.mkdir(parents=True, exist_ok=True)
