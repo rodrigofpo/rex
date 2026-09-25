@@ -25,7 +25,10 @@
 
 ## 🛠️ Instalação
 
-Clone o repositório e configure o ambiente virtual:
+Para instalar a partir do código-fonte, clone o repositório e configure um
+ambiente virtual. O `pip` instala as ferramentas de build declaradas no
+`pyproject.toml` automaticamente; não é necessário instalar `setuptools`
+manualmente:
 
 ```bash
 git clone https://github.com/rodrigofpo/rex.git
@@ -103,6 +106,15 @@ navegador local.
 O release inclui também wheel (`.whl`) e pacote fonte (`.tar.gz`) para quem
 prefere instalar em um ambiente Python. O projeto não publica automaticamente
 no PyPI. O arquivo `SHA256SUMS.txt` permite conferir os downloads.
+
+Para instalar o wheel baixado da release, use:
+
+```bash
+python -m pip install --only-binary=:all: ./rex_eds-1.0.0-py3-none-any.whl
+```
+
+Essa instalação usa apenas pacotes binários e não executa o build do REX no
+computador do usuário. Os executáveis compactados dispensam Python e `pip`.
 
 ---
 

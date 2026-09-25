@@ -40,7 +40,7 @@ jobs:
       - name: Smoke test wheel installation
         run: |
           python -m venv /tmp/rex-wheel-smoke
-          /tmp/rex-wheel-smoke/bin/python -m pip install dist/*.whl
+          /tmp/rex-wheel-smoke/bin/python -m pip install --only-binary=:all: dist/*.whl
           /tmp/rex-wheel-smoke/bin/rex --version
           /tmp/rex-wheel-smoke/bin/rex --help
 
