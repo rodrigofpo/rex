@@ -14,7 +14,13 @@ import pandas as pd
 import pytest
 
 from rex.errors import InvalidDocumentError
-from rex.ui.web import ExtractorWebHandler, dataframe_records_for_json, resolve_docx_path
+from rex.models import ExportPaths
+from rex.ui.web import (
+    ExtractorWebHandler,
+    dataframe_records_for_json,
+    resolve_docx_path,
+    validate_upload_filename,
+)
 
 
 @pytest.mark.parametrize(
@@ -87,6 +93,87 @@ class ResolveDocxPathTests(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 resolve_docx_path(target, link.name)
+
+
+@pytest.mark.parametrize("filename", ["../outro.docx", "pasta/laudo.docx", "pasta\\laudo.docx", "laudo.txt", "~$laudo.docx", ""])
+def test_upload_rejects_invalid_filename(filename):
+    with pytest.raises(ValueError):
+        validate_upload_filename(filename)
+
+
+def test_upload_processes_selected_docx_and_removes_temporary_copy(tmp_path: Path, monkeypatch):
+    content = b"conteudo-do-laudo"
+    handler = object.__new__(ExtractorWebHandler)
+    handler.target_dir = tmp_path
+    handler.path = "/api/extract-upload"
+    handler.rfile = io.BytesIO(content)
+    handler.headers = Message()
+    handler.headers["Host"] = "localhost:8085"
+    handler.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    handler.headers["Content-Length"] = str(len(content))
+    handler.headers["X-REX-Filename"] = "Laudo%20A.docx"
+    handler.headers["X-REX-Workbook-Mode"] = "per-sample"
+    responses = []
+    handler._send_json = lambda status, payload: responses.append((status, payload))
+    captured = {}
+
+    def process(engine, docx_path, output_dir, workbook_mode):
+        captured["name"] = docx_path.name
+        captured["contents"] = docx_path.read_bytes()
+        captured["path"] = docx_path
+        captured["mode"] = workbook_mode
+        captured["output_dir"] = output_dir
+        engine.last_export_paths = ExportPaths(
+            excel=tmp_path / "Laudo A_REX-teste.xlsx",
+            csv=tmp_path / "Laudo A_REX-teste.csv",
+        )
+        return pd.DataFrame(), pd.DataFrame()
+
+    monkeypatch.setattr("rex.core.engine.EDSExtractorEngine.process", process)
+    handler.do_POST()
+
+    assert responses[0][0] == 200
+    assert captured["name"] == "Laudo A.docx"
+    assert captured["contents"] == content
+    assert captured["mode"] == "per-sample"
+    assert captured["output_dir"] == tmp_path
+    assert not captured["path"].exists()
+
+
+def test_upload_rejects_oversized_body_before_reading(tmp_path: Path):
+    handler = object.__new__(ExtractorWebHandler)
+    handler.target_dir = tmp_path
+    handler.path = "/api/extract-upload"
+    handler.rfile = io.BytesIO(b"not read")
+    handler.headers = Message()
+    handler.headers["Host"] = "localhost"
+    handler.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    handler.headers["Content-Length"] = str(250 * 1024 * 1024 + 1)
+    responses = []
+    handler._send_json = lambda status, payload: responses.append((status, payload))
+
+    handler.do_POST()
+
+    assert responses[0][0] == 400
+    assert handler.rfile.tell() == 0
+
+
+def test_upload_rejects_interrupted_body(tmp_path: Path):
+    handler = object.__new__(ExtractorWebHandler)
+    handler.target_dir = tmp_path
+    handler.path = "/api/extract-upload"
+    handler.rfile = io.BytesIO(b"short")
+    handler.headers = Message()
+    handler.headers["Host"] = "localhost"
+    handler.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    handler.headers["Content-Length"] = "10"
+    handler.headers["X-REX-Filename"] = "laudo.docx"
+    responses = []
+    handler._send_json = lambda status, payload: responses.append((status, payload))
+
+    handler.do_POST()
+
+    assert responses[0][0] == 400
 
 
 class WebSerializationTests(unittest.TestCase):

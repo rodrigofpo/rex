@@ -2,16 +2,23 @@
 
 import pytest
 
-from rex.ui.desktop import calculate_linux_ui_scale, calculate_window_geometry
+from rex.ui import desktop
+from rex.ui.desktop import calculate_window_geometry
 
 
-def test_converts_hidpi_tk_scaling_for_customtkinter():
-    assert calculate_linux_ui_scale(2.669293924466338) == pytest.approx(2.002, rel=1e-3)
+def test_linux_scaling_is_neutralized_before_window_creation(monkeypatch):
+    calls = []
+    monkeypatch.setattr(desktop.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(desktop.ctk, "set_widget_scaling", lambda scale: calls.append(("widget", scale)))
+    monkeypatch.setattr(desktop.ctk, "set_window_scaling", lambda scale: calls.append(("window", scale)))
 
+    def stop_at_window_creation(_self):
+        assert calls == [("widget", 1.0), ("window", 1.0)]
+        raise RuntimeError("janela interceptada")
 
-def test_linux_ui_scale_has_safe_limits():
-    assert calculate_linux_ui_scale(1.0) == 1.0
-    assert calculate_linux_ui_scale(4.0) == 2.5
+    monkeypatch.setattr(desktop.ctk.CTk, "__init__", stop_at_window_creation)
+    with pytest.raises(RuntimeError, match="janela interceptada"):
+        desktop.REXDesktopApp()
 
 
 def test_uses_wide_default_geometry_on_full_hd_screen():

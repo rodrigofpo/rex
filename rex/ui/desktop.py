@@ -30,14 +30,6 @@ WORKBOOK_MODE_OPTIONS = {
     "Por amostra — uma planilha para cada amostra": WORKBOOK_MODE_PER_SAMPLE,
 }
 
-TK_SCALING_AT_96_DPI = 96 / 72
-
-
-def calculate_linux_ui_scale(tk_scaling: float) -> float:
-    """Converte a escala do Tk em um fator adequado ao CustomTkinter no Linux."""
-    return max(1.0, min(2.5, float(tk_scaling) / TK_SCALING_AT_96_DPI))
-
-
 def calculate_window_geometry(screen_width: int, screen_height: int) -> tuple[int, int, int, int]:
     """Calcula uma janela ampla, centralizada e compatível com telas menores."""
     usable_width = max(640, int(screen_width * 0.90))
@@ -67,12 +59,13 @@ def open_file_or_folder_in_os(path: Path | str):
 
 class REXDesktopApp(ctk.CTk):
     def __init__(self):
-        super().__init__()
-
         if platform.system() == "Linux":
-            ui_scale = calculate_linux_ui_scale(self.tk.call("tk", "scaling"))
-            ctk.set_widget_scaling(ui_scale)
-            ctk.set_window_scaling(ui_scale)
+            # O CTk já aplica a escala do Tk às fontes. Multiplicar novamente
+            # pelo DPI do Tk amplia widgets e geometria duas vezes no Linux.
+            ctk.set_widget_scaling(1.0)
+            ctk.set_window_scaling(1.0)
+
+        super().__init__()
 
         self.title("REX — MEV-EDS Report Extractor")
         width, height, offset_x, offset_y = calculate_window_geometry(

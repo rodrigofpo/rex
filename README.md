@@ -76,6 +76,7 @@ python -m rex web
 ```
 
 * **Vantagens**: Não requer pacotes `tkinter` do sistema, inclui tabela de pré-visualização, cartões de métricas químicas e botões diretos de download.
+* **Selecionar laudo**: Escolha um `.docx` da pasta atual ou use o seletor de arquivos para localizar um laudo em outra pasta. O arquivo selecionado é enviado apenas ao servidor local, processado em uma cópia temporária (limite de 250 MB) e removido ao terminar. Os resultados são gravados na pasta em que o REX foi iniciado.
 
 ### 3. Interface Desktop Nativa (CustomTkinter)
 

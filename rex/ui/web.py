@@ -7,6 +7,7 @@ import http.server
 import socketserver
 import json
 import logging
+import tempfile
 import urllib.parse
 from pathlib import Path
 import threading
@@ -16,8 +17,10 @@ import os
 
 from rex.workbook import WORKBOOK_MODE_CONSOLIDATED, WORKBOOK_MODES
 from rex.errors import REXError
+from rex.security import DocumentLimits
 
 MAX_REQUEST_BODY_BYTES = 16 * 1024
+MAX_UPLOAD_BYTES = DocumentLimits().max_file_bytes
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,21 @@ def resolve_docx_path(target_dir: Path | str, filename: object) -> Path:
         raise ValueError("Arquivo .docx não encontrado no diretório de trabalho.")
 
     return candidate
+
+
+def validate_upload_filename(filename: object) -> str:
+    """Aceita apenas um nome DOCX, sem componentes de caminho."""
+    if (
+        not isinstance(filename, str)
+        or not filename
+        or filename.startswith("~$")
+        or "/" in filename
+        or "\\" in filename
+        or "\x00" in filename
+        or Path(filename).suffix.lower() != ".docx"
+    ):
+        raise ValueError("Selecione um arquivo .docx válido.")
+    return filename
 
 
 def dataframe_records_for_json(dataframe, limit: int = 150) -> list[dict]:
@@ -128,7 +146,7 @@ HTML_PAGE = """<!DOCTYPE html>
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    select, input[type="text"] {
+    select, input[type="text"], input[type="file"] {
       width: 100%;
       background: #11111a;
       border: 1px solid var(--card-border);
@@ -140,8 +158,17 @@ HTML_PAGE = """<!DOCTYPE html>
       outline: none;
       transition: border-color 0.2s;
     }
-    select:focus, input[type="text"]:focus {
+    select:focus, input[type="text"]:focus, input[type="file"]:focus {
       border-color: var(--accent);
+    }
+    input[type="file"]::file-selector-button {
+      background: var(--accent);
+      color: #fff;
+      border: 0;
+      border-radius: 6px;
+      padding: 7px 12px;
+      margin-right: 12px;
+      cursor: pointer;
     }
     .btn-run {
       background: var(--accent);
@@ -330,8 +357,12 @@ HTML_PAGE = """<!DOCTYPE html>
 
     <div class="card">
       <div class="field-group">
-        <label>Selecione o Laudo Word (.docx):</label>
-        <select id="docxSelect"></select>
+        <label for="docxSelect">Laudos na pasta atual:</label>
+        <select id="docxSelect" onchange="document.getElementById('docxFile').value = ''"></select>
+      </div>
+      <div class="field-group">
+        <label for="docxFile">Ou localize um laudo no computador (.docx):</label>
+        <input id="docxFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
       </div>
       <div class="field-group">
         <label>Estrutura da Pasta de Trabalho Excel:</label>
@@ -468,10 +499,15 @@ HTML_PAGE = """<!DOCTYPE html>
     }
 
     async function startExtraction() {
-      const docx = document.getElementById('docxSelect').value;
+      const file = document.getElementById('docxFile').files[0];
+      const docx = file ? file.name : document.getElementById('docxSelect').value;
       const workbookMode = document.getElementById('workbookMode').value;
       if (!docx) {
         showFeedback('Selecione um arquivo .docx primeiro.', 'error');
+        return;
+      }
+      if (file && (!file.name.toLowerCase().endsWith('.docx') || file.size === 0 || file.size > 250 * 1024 * 1024)) {
+        showFeedback('Escolha um DOCX não vazio com até 250 MB.', 'error');
         return;
       }
 
@@ -486,11 +522,22 @@ HTML_PAGE = """<!DOCTYPE html>
       appendLog(`Iniciando extração do arquivo: ${docx}`);
 
       try {
-        const res = await fetch('/api/extract', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: docx, workbook_mode: workbookMode })
-        });
+        const request = file
+          ? {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'X-REX-Filename': encodeURIComponent(file.name),
+                'X-REX-Workbook-Mode': workbookMode
+              },
+              body: file
+            }
+          : {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filename: docx, workbook_mode: workbookMode })
+            };
+        const res = await fetch(file ? '/api/extract-upload' : '/api/extract', request);
         const data = await res.json();
 
         if (!res.ok || data.error) {
@@ -631,6 +678,9 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(403, "Host não permitido")
             return
 
+        if self.path == "/api/extract-upload":
+            self._handle_upload()
+            return
         if self.path != "/api/extract":
             self.send_error(404, "Não encontrado")
             return
@@ -654,6 +704,41 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(400, {"error": str(exc)})
             return
 
+        self._process_document(docx_file, workbook_mode)
+
+    def _handle_upload(self):
+        try:
+            if self.headers.get_content_type() != "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                raise ValueError("Content-Type deve ser um documento DOCX.")
+            content_len = int(self.headers.get("Content-Length", 0))
+            if content_len <= 0 or content_len > MAX_UPLOAD_BYTES:
+                raise ValueError("O laudo deve ter até 250 MB e não pode estar vazio.")
+            encoded_name = self.headers.get("X-REX-Filename", "")
+            if len(encoded_name) > 1024:
+                raise ValueError("Nome de arquivo muito longo.")
+            filename = validate_upload_filename(urllib.parse.unquote(encoded_name))
+            workbook_mode = self.headers.get("X-REX-Workbook-Mode", WORKBOOK_MODE_CONSOLIDATED)
+            if workbook_mode not in WORKBOOK_MODES:
+                raise ValueError("Modo de pasta de trabalho inválido.")
+
+            with tempfile.TemporaryDirectory(prefix="rex-upload-") as temp_dir:
+                document_path = Path(temp_dir) / filename
+                with document_path.open("wb") as destination:
+                    remaining = content_len
+                    while remaining:
+                        chunk = self.rfile.read(min(1024 * 1024, remaining))
+                        if not chunk:
+                            raise ValueError("O upload foi interrompido antes de terminar.")
+                        destination.write(chunk)
+                        remaining -= len(chunk)
+                self._process_document(document_path, workbook_mode)
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+        except OSError:
+            logger.exception("Falha ao receber o laudo pela interface web")
+            self._send_json(500, {"error": "Não foi possível receber o laudo."})
+
+    def _process_document(self, docx_file: Path, workbook_mode: str):
         t0 = time.time()
         from rex.core.engine import EDSExtractorEngine
 
