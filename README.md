@@ -2,7 +2,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![OCR Engine](https://img.shields.io/badge/OCR-RapidOCR%20(ONNX)-green.svg)](https://github.com/RapidAI/RapidOCR)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
 > **REX** (*MEV-EDS Report Extractor*) é uma ferramenta determinística e de alta precisão para extração, estruturação e correlação de dados quantitativos de espectroscopia EDS e micrografias contidas em laudos laboratoriais do Microsoft Word (`.docx`).
@@ -178,7 +178,9 @@ todos os seus pontos, séries e medições químicas.
 
 ## 📄 Licença
 
-Distribuído sob a licença **MIT**. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Copyright © 2026 Rodrigo Fernando Pinheiro Oliveira.
+
+Distribuído sob a licença **Apache 2.0**. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 **Autor**: Rodrigo Fernando Pinheiro Oliveira<br>
 **Repositório**: [https://github.com/rodrigofpo/rex](https://github.com/rodrigofpo/rex)
