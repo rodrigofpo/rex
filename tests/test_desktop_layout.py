@@ -26,14 +26,18 @@ def test_point_count_keeps_repeated_numbers_across_samples_and_series():
 def test_linux_scaling_matches_tk_before_building_widgets(monkeypatch):
     calls = []
     monkeypatch.setattr(desktop.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(desktop, "read_xft_dpi", lambda: 192.0)
     monkeypatch.setattr(desktop.ctk, "set_widget_scaling", lambda scale: calls.append(("widget", scale)))
     monkeypatch.setattr(desktop.ctk, "set_window_scaling", lambda scale: calls.append(("window", scale)))
 
     class FakeTk:
-        @staticmethod
-        def call(*args):
-            assert args == ("tk", "scaling")
-            return 8 / 3
+        scaling = 4 / 3
+
+        def call(self, *args):
+            assert args[:2] == ("tk", "scaling")
+            if len(args) == 3:
+                self.scaling = args[2]
+            return self.scaling
 
     monkeypatch.setattr(desktop.ctk.CTk, "__init__", lambda self: setattr(self, "tk", FakeTk()))
     monkeypatch.setattr(desktop.ctk.CTk, "_get_window_scaling", lambda self: 2.0)
@@ -50,6 +54,22 @@ def test_linux_scaling_matches_tk_before_building_widgets(monkeypatch):
 @pytest.mark.parametrize("tk_scaling, expected", [(4 / 3, 1.0), (2.0, 1.5), (8 / 3, 2.0)])
 def test_linux_scale_conversion(tk_scaling, expected):
     assert desktop.linux_scale_from_tk(tk_scaling) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "resources, expected",
+    [("Xft.dpi:\t192\n", 192.0), ("Xft.dpi: 96.5\n", 96.5), ("Xft.dpi: 0\n", None), ("Xcursor.size: 24\n", None)],
+)
+def test_parse_xft_dpi(resources, expected):
+    assert desktop.parse_xft_dpi(resources) == expected
+
+
+def test_xft_dpi_reader_rejects_missing_display(monkeypatch):
+    class FakeXlib:
+        XOpenDisplay = None
+
+    monkeypatch.setattr(desktop.ctypes, "CDLL", lambda _name: FakeXlib())
+    assert desktop.read_xft_dpi() is None
 
 
 def test_scaled_geometry_uses_logical_size_and_physical_position():

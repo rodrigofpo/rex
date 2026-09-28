@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 import platform
 import queue
+import re
 import subprocess
 import threading
 import time
@@ -105,6 +107,41 @@ def linux_scale_from_tk(tk_scaling: float) -> float:
     return max(0.4, tk_scaling / (96 / 72))
 
 
+def parse_xft_dpi(resources: str) -> float | None:
+    """Extrai um DPI plausível das preferências X11."""
+    match = re.search(r"(?m)^\s*Xft\.dpi\s*:\s*(\d+(?:\.\d+)?)\s*$", resources)
+    if match:
+        dpi = float(match.group(1))
+        if 50 <= dpi <= 600:
+            return dpi
+    return None
+
+
+def read_xft_dpi() -> float | None:
+    """Lê o DPI anunciado pelo servidor X, inclusive sob XWayland."""
+    try:
+        xlib = ctypes.CDLL("libX11.so.6")
+        xlib.XOpenDisplay.argtypes = [ctypes.c_char_p]
+        xlib.XOpenDisplay.restype = ctypes.c_void_p
+        xlib.XResourceManagerString.argtypes = [ctypes.c_void_p]
+        xlib.XResourceManagerString.restype = ctypes.c_char_p
+        xlib.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        xlib.XCloseDisplay.restype = ctypes.c_int
+        display = xlib.XOpenDisplay(None)
+        if not display:
+            return None
+        try:
+            resources = xlib.XResourceManagerString(display)
+            if not resources:
+                return None
+            return parse_xft_dpi(resources.decode("utf-8", errors="replace"))
+        finally:
+            xlib.XCloseDisplay(display)
+    except (AttributeError, OSError, ValueError):
+        pass
+    return None
+
+
 def open_file_or_folder_in_os(path: Path | str) -> None:
     """Abre um resultado no aplicativo padrão do sistema operacional."""
     target = Path(path)
@@ -127,6 +164,11 @@ class REXDesktopApp(ctk.CTk):
         super().__init__()
 
         if platform.system() == "Linux":
+            xft_dpi = read_xft_dpi()
+            if xft_dpi is not None:
+                # Tk 8.6 empacotado pode ignorar Xft.dpi no Fedora/Wayland,
+                # ao contrário do Tk 9 instalado no sistema.
+                self.tk.call("tk", "scaling", xft_dpi / 72)
             linux_scale = linux_scale_from_tk(float(self.tk.call("tk", "scaling")))
             ctk.set_widget_scaling(linux_scale)
             ctk.set_window_scaling(linux_scale)
