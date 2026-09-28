@@ -19,27 +19,9 @@ from rex.workbook import WORKBOOK_MODE_CONSOLIDATED, WORKBOOK_MODES
 from rex.errors import REXError
 from rex.security import DocumentLimits
 
-MAX_REQUEST_BODY_BYTES = 16 * 1024
 MAX_UPLOAD_BYTES = DocumentLimits().max_file_bytes
 ALLOWED_HOSTS = {"127.0.0.1", "localhost"}
 logger = logging.getLogger(__name__)
-
-
-def resolve_docx_path(target_dir: Path | str, filename: object) -> Path:
-    """Resolve um DOCX simples, sem permitir caminhos fora do diretório publicado."""
-    if not isinstance(filename, str) or not filename:
-        raise ValueError("Nome de arquivo inválido.")
-
-    requested = Path(filename)
-    if requested.name != filename or requested.suffix.lower() != ".docx":
-        raise ValueError("Selecione um arquivo .docx do diretório de trabalho.")
-
-    base_dir = Path(target_dir).resolve()
-    candidate = (base_dir / requested).resolve()
-    if candidate.parent != base_dir or not candidate.is_file():
-        raise ValueError("Arquivo .docx não encontrado no diretório de trabalho.")
-
-    return candidate
 
 
 def validate_upload_filename(filename: object) -> str:
@@ -357,11 +339,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     <div class="card">
       <div class="field-group">
-        <label for="docxSelect">Laudos na pasta atual:</label>
-        <select id="docxSelect" onchange="document.getElementById('docxFile').value = ''"></select>
-      </div>
-      <div class="field-group">
-        <label for="docxFile">Ou localize um laudo no computador (.docx):</label>
+        <label for="docxFile">Localize o laudo no computador (.docx):</label>
         <input id="docxFile" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
       </div>
       <div class="field-group">
@@ -453,31 +431,6 @@ HTML_PAGE = """<!DOCTYPE html>
   </div>
 
   <script>
-    async function loadFiles() {
-      const sel = document.getElementById('docxSelect');
-      try {
-        const res = await fetch('/api/files');
-        if (!res.ok) throw new Error('Falha ao listar os arquivos.');
-        const files = await res.json();
-        sel.innerHTML = '';
-        if (files.length === 0) {
-          const opt = document.createElement('option');
-          opt.value = '';
-          opt.textContent = 'Nenhum arquivo .docx encontrado no diretório atual';
-          sel.appendChild(opt);
-          return;
-        }
-        files.forEach(f => {
-          const opt = document.createElement('option');
-          opt.value = f;
-          opt.textContent = f;
-          sel.appendChild(opt);
-        });
-      } catch (err) {
-        showFeedback('Não foi possível listar os arquivos. Verifique o servidor local e recarregue a página.', 'error');
-      }
-    }
-
     function switchTab(tabId, button) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -500,13 +453,12 @@ HTML_PAGE = """<!DOCTYPE html>
 
     async function startExtraction() {
       const file = document.getElementById('docxFile').files[0];
-      const docx = file ? file.name : document.getElementById('docxSelect').value;
       const workbookMode = document.getElementById('workbookMode').value;
-      if (!docx) {
+      if (!file) {
         showFeedback('Selecione um arquivo .docx primeiro.', 'error');
         return;
       }
-      if (file && (!file.name.toLowerCase().endsWith('.docx') || file.size === 0 || file.size > 250 * 1024 * 1024)) {
+      if (!file.name.toLowerCase().endsWith('.docx') || file.size === 0 || file.size > 250 * 1024 * 1024) {
         showFeedback('Escolha um DOCX não vazio com até 250 MB.', 'error');
         return;
       }
@@ -519,25 +471,18 @@ HTML_PAGE = """<!DOCTYPE html>
 
       const logBox = document.getElementById('logBox');
       logBox.textContent = '';
-      appendLog(`Iniciando extração do arquivo: ${docx}`);
+      appendLog(`Iniciando extração do arquivo: ${file.name}`);
 
       try {
-        const request = file
-          ? {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'X-REX-Filename': encodeURIComponent(file.name),
-                'X-REX-Workbook-Mode': workbookMode
-              },
-              body: file
-            }
-          : {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filename: docx, workbook_mode: workbookMode })
-            };
-        const res = await fetch(file ? '/api/extract-upload' : '/api/extract', request);
+        const res = await fetch('/api/extract-upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'X-REX-Filename': encodeURIComponent(file.name),
+            'X-REX-Workbook-Mode': workbookMode
+          },
+          body: file
+        });
         const data = await res.json();
 
         if (!res.ok || data.error) {
@@ -598,7 +543,6 @@ HTML_PAGE = """<!DOCTYPE html>
       }
     }
 
-    loadFiles();
   </script>
 </body>
 </html>
@@ -644,10 +588,6 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(HTML_PAGE.encode("utf-8"))
 
-        elif parsed.path == "/api/files":
-            docx_files = [f.name for f in self.target_dir.glob("*.docx") if not f.name.startswith("~$")]
-            self._send_json(200, sorted(docx_files))
-
         elif parsed.path == "/api/download/excel":
             excel_path = self.latest_excel_path
             if excel_path is not None and excel_path.is_file():
@@ -681,30 +621,7 @@ class ExtractorWebHandler(http.server.SimpleHTTPRequestHandler):
         if self.path == "/api/extract-upload":
             self._handle_upload()
             return
-        if self.path != "/api/extract":
-            self.send_error(404, "Não encontrado")
-            return
-
-        try:
-            content_type = self.headers.get_content_type()
-            if content_type != "application/json":
-                raise ValueError("Content-Type deve ser application/json.")
-            content_len = int(self.headers.get("Content-Length", 0))
-            if content_len <= 0 or content_len > MAX_REQUEST_BODY_BYTES:
-                raise ValueError("Tamanho de requisição inválido.")
-            post_body = self.rfile.read(content_len)
-            data = json.loads(post_body.decode("utf-8"))
-            if not isinstance(data, dict):
-                raise ValueError("Corpo JSON inválido.")
-            docx_file = resolve_docx_path(self.target_dir, data.get("filename"))
-            workbook_mode = data.get("workbook_mode", WORKBOOK_MODE_CONSOLIDATED)
-            if workbook_mode not in WORKBOOK_MODES:
-                raise ValueError("Modo de pasta de trabalho inválido.")
-        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
-            self._send_json(400, {"error": str(exc)})
-            return
-
-        self._process_document(docx_file, workbook_mode)
+        self.send_error(404, "Não encontrado")
 
     def _handle_upload(self):
         try:

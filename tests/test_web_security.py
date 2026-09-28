@@ -16,11 +16,33 @@ import pytest
 from rex.errors import InvalidDocumentError
 from rex.models import ExportPaths
 from rex.ui.web import (
+    HTML_PAGE,
     ExtractorWebHandler,
     dataframe_records_for_json,
-    resolve_docx_path,
     validate_upload_filename,
 )
+
+
+def test_web_page_uses_only_file_picker_for_report_selection():
+    assert 'id="docxFile" type="file"' in HTML_PAGE
+    assert 'id="docxSelect"' not in HTML_PAGE
+    assert "/api/files" not in HTML_PAGE
+    assert "fetch('/api/extract-upload'" in HTML_PAGE
+    assert "fetch('/api/extract'" not in HTML_PAGE
+
+
+@pytest.mark.parametrize(("method", "path"), [("do_GET", "/api/files"), ("do_POST", "/api/extract")])
+def test_web_disables_project_folder_selection_routes(method, path):
+    handler = object.__new__(ExtractorWebHandler)
+    handler.path = path
+    handler.headers = Message()
+    handler.headers["Host"] = "localhost"
+    errors = []
+    handler.send_error = lambda status, message: errors.append((status, message))
+
+    getattr(handler, method)()
+
+    assert errors[0][0] == 404
 
 
 @pytest.mark.parametrize(
@@ -33,16 +55,16 @@ from rex.ui.web import (
 def test_web_extraction_reports_controlled_errors(
     tmp_path: Path, monkeypatch, failure, expected_status, expected_message
 ):
-    (tmp_path / "laudo.docx").write_bytes(b"test")
-    body = json.dumps({"filename": "laudo.docx"}).encode("utf-8")
+    body = b"test"
     handler = object.__new__(ExtractorWebHandler)
     handler.target_dir = tmp_path
-    handler.path = "/api/extract"
+    handler.path = "/api/extract-upload"
     handler.rfile = io.BytesIO(body)
     handler.headers = Message()
     handler.headers["Host"] = "localhost:8085"
-    handler.headers["Content-Type"] = "application/json"
+    handler.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     handler.headers["Content-Length"] = str(len(body))
+    handler.headers["X-REX-Filename"] = "laudo.docx"
     responses = []
     handler._send_json = lambda status, payload: responses.append((status, payload))
 
@@ -55,44 +77,6 @@ def test_web_extraction_reports_controlled_errors(
     assert responses[0][0] == expected_status
     assert expected_message in responses[0][1]["error"]
     assert "detalhe interno" not in responses[0][1]["error"]
-
-
-class ResolveDocxPathTests(unittest.TestCase):
-    def test_accepts_file_inside_target(self):
-        with tempfile.TemporaryDirectory() as directory:
-            target = Path(directory)
-            report = target / "report.docx"
-            report.write_bytes(b"test")
-
-            self.assertEqual(resolve_docx_path(target, report.name), report.resolve())
-
-    def test_rejects_invalid_or_external_paths(self):
-        invalid_names = (
-            None,
-            "",
-            "../secret.docx",
-            "/tmp/secret.docx",
-            "report.txt",
-            "folder/report.docx",
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            for filename in invalid_names:
-                with self.subTest(filename=filename):
-                    with self.assertRaises(ValueError):
-                        resolve_docx_path(directory, filename)
-
-    def test_rejects_symlink_escape(self):
-        with tempfile.TemporaryDirectory() as parent_directory:
-            parent = Path(parent_directory)
-            target = parent / "published"
-            target.mkdir()
-            outside = parent / "outside.docx"
-            outside.write_bytes(b"test")
-            link = target / "linked.docx"
-            link.symlink_to(outside)
-
-            with self.assertRaises(ValueError):
-                resolve_docx_path(target, link.name)
 
 
 @pytest.mark.parametrize("filename", ["../outro.docx", "pasta/laudo.docx", "pasta\\laudo.docx", "laudo.txt", "~$laudo.docx", ""])
