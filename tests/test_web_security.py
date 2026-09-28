@@ -3,6 +3,7 @@
 import json
 import io
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -24,11 +25,21 @@ from rex.ui.web import (
 
 
 def test_web_page_uses_only_file_picker_for_report_selection():
-    assert 'id="docxFile" type="file"' in HTML_PAGE
-    assert 'id="docxSelect"' not in HTML_PAGE
+    assert 'id="file-input"' in HTML_PAGE
+    assert 'type="file"' in HTML_PAGE
+    assert 'id="xlsx-options"' in HTML_PAGE
+    assert re.search(r'<fieldset\s+id="xlsx-options"\s+disabled', HTML_PAGE)
+    assert 'id="process-button"' in HTML_PAGE
+    assert 'value="consolidated"' in HTML_PAGE
+    assert 'value="per-sample"' in HTML_PAGE
     assert "/api/files" not in HTML_PAGE
-    assert "fetch('/api/extract-upload'" in HTML_PAGE
-    assert "fetch('/api/extract'" not in HTML_PAGE
+    assert 'fetch("/api/extract-upload"' in HTML_PAGE
+    assert '"X-REX-Workbook-Mode": state.mode' in HTML_PAGE
+    assert 'href="/api/download/excel"' in HTML_PAGE
+    assert 'href="/api/download/csv"' in HTML_PAGE
+    assert "DADOS FICTICIOS" not in HTML_PAGE
+    assert "setTimeout(finish" not in HTML_PAGE
+    assert "new Blob(" not in HTML_PAGE
 
 
 @pytest.mark.parametrize(("method", "path"), [("do_GET", "/api/files"), ("do_POST", "/api/extract")])

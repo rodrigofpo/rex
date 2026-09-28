@@ -92,7 +92,7 @@ jobs:
       - name: Test and bundle application
         run: |
           python -m pytest -q
-          python -m PyInstaller --noconfirm --clean --onedir --console --name ${{ matrix.binary_name }} --collect-all rapidocr_onnxruntime --collect-all onnxruntime --collect-all customtkinter --hidden-import rex.ui.desktop --hidden-import rex.ui.web rex/__main__.py
+          python -m PyInstaller --noconfirm --clean --onedir --console --name ${{ matrix.binary_name }} --collect-all rapidocr_onnxruntime --collect-all onnxruntime --collect-all customtkinter --collect-data rex --hidden-import rex.ui.desktop --hidden-import rex.ui.web rex/__main__.py
 
       - name: Smoke test and archive Windows executable
         if: runner.os == 'Windows'

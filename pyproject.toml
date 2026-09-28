@@ -32,3 +32,6 @@ rex = "rex.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["rex*"]
+
+[tool.setuptools.package-data]
+"rex.ui" = ["web.html"]

@@ -1,0 +1,2244 @@
+<!doctype html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>REX — Extrator de laudos MEV/EDS</title>
+        <style>
+            /* OD-LAYOUT-PRIMITIVES v1 — structure only: display, flex/grid, overflow, wrapping, ratio.
+       Put this @layer first; product CSS outside the layer always wins. */
+            @layer od-layout {
+                :where(
+                        .od-stack,
+                        .od-row,
+                        .od-row-top,
+                        .od-cluster,
+                        .od-grid,
+                        .od-field,
+                        .od-stat,
+                        .od-cell,
+                        .od-tile
+                    )
+                    > :where(*) {
+                    min-width: 0;
+                }
+                .od-stack {
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--od-gap, 8px);
+                }
+                .od-row {
+                    display: flex;
+                    align-items: center;
+                    gap: var(--od-gap, 8px);
+                }
+                .od-row-top {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: var(--od-gap, 8px);
+                }
+                .od-cluster {
+                    display: flex;
+                    flex-wrap: wrap;
+                    align-items: center;
+                    gap: var(--od-gap, 8px);
+                }
+                .od-fill {
+                    flex: 1 1 0;
+                    min-width: 0;
+                }
+                .od-fixed {
+                    flex: none;
+                }
+                .od-grid {
+                    display: grid;
+                    gap: var(--od-gap, 12px);
+                    grid-template-columns: repeat(
+                        var(--od-cols, 3),
+                        minmax(0, 1fr)
+                    );
+                }
+                .od-stat,
+                .od-field,
+                .od-cell {
+                    display: grid;
+                    gap: var(--od-gap, 2px);
+                }
+                :where(.od-stat, .od-field, .od-cell) > :where(*) {
+                    display: block;
+                }
+                .od-tile {
+                    display: grid;
+                    grid-template-rows: auto 1fr;
+                }
+                :where(.od-tile) > :where(*) {
+                    display: block;
+                }
+                .od-media {
+                    display: block;
+                    width: 100%;
+                    height: auto;
+                    aspect-ratio: var(--od-ratio, auto);
+                }
+                .od-media-cover {
+                    object-fit: cover;
+                }
+                .od-truncate {
+                    display: block;
+                    max-width: 100%;
+                    overflow: hidden;
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
+                }
+                .od-clamp-2,
+                .od-clamp-3 {
+                    display: -webkit-box;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                    overflow-wrap: anywhere;
+                }
+                .od-clamp-2 {
+                    -webkit-line-clamp: 2;
+                }
+                .od-clamp-3 {
+                    -webkit-line-clamp: 3;
+                }
+                .od-lines-2 {
+                    min-height: calc(2 * 1.4em);
+                }
+                .od-nowrap {
+                    white-space: nowrap;
+                }
+                .od-keep {
+                    word-break: keep-all;
+                    overflow-wrap: anywhere;
+                }
+                .od-screen {
+                    display: grid;
+                    grid-template-rows: auto minmax(0, 1fr) auto;
+                    height: 100%;
+                }
+                .od-scroll {
+                    overflow-y: auto;
+                    overscroll-behavior: contain;
+                    min-height: 0;
+                }
+                .od-rail {
+                    display: flex;
+                    gap: var(--od-gap, 8px);
+                    overflow-x: auto;
+                    scroll-snap-type: x proximity;
+                    scrollbar-width: none;
+                    padding-inline: var(--od-rail-pad, 16px);
+                    scroll-padding-inline: var(--od-rail-pad, 16px);
+                }
+                .od-rail::-webkit-scrollbar {
+                    display: none;
+                }
+                :where(.od-rail) > :where(*) {
+                    flex: none;
+                    scroll-snap-align: start;
+                }
+                :where(.od-rail) > :where(:last-child) {
+                    margin-inline-end: var(--od-rail-pad, 16px);
+                }
+                .od-spacer {
+                    flex: none;
+                    visibility: hidden;
+                    pointer-events: none;
+                }
+                .od-touch {
+                    min-width: 44px;
+                    min-height: 44px;
+                }
+            }
+            /* /OD-LAYOUT-PRIMITIVES v1 */
+
+            :root {
+                color-scheme: light;
+                --bg: #f4f7f8;
+                --surface: #fff;
+                --surface-muted: #eaf0f2;
+                --surface-blue: #e9f3f5;
+                --primary: #075e63;
+                --primary-strong: #06484c;
+                --accent: #216a8c;
+                --text: #172326;
+                --text-muted: #526469;
+                --success: #247a4b;
+                --success-bg: #eaf6ef;
+                --warning: #8a5d00;
+                --warning-bg: #fff6d8;
+                --danger: #b42318;
+                --danger-bg: #fff0ee;
+                --border: #c7d2d6;
+                --border-strong: #8ca0a6;
+                --focus: #e8a317;
+                --shadow: 0 12px 30px rgba(23, 35, 38, 0.08);
+                --radius-sm: 8px;
+                --radius-md: 12px;
+                --radius-lg: 16px;
+                --s1: 4px;
+                --s2: 8px;
+                --s3: 12px;
+                --s4: 16px;
+                --s5: 24px;
+                --s6: 32px;
+                --s7: 48px;
+                --s8: 64px;
+                --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+                --display: system-ui, -apple-system, "Segoe UI", sans-serif;
+                --mono:
+                    "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+                --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+            html {
+                min-width: 320px;
+                background: var(--bg);
+            }
+            body {
+                margin: 0;
+                color: var(--text);
+                background: var(--bg);
+                font: 400 16px/1.6 var(--sans);
+            }
+            button,
+            input,
+            select {
+                font: inherit;
+            }
+            button,
+            a,
+            label,
+            select {
+                -webkit-tap-highlight-color: transparent;
+            }
+            button {
+                cursor: pointer;
+            }
+            button:focus-visible,
+            a:focus-visible,
+            input:focus-visible,
+            select:focus-visible {
+                outline: 3px solid var(--focus);
+                outline-offset: 3px;
+            }
+            [hidden] {
+                display: none !important;
+            }
+
+            .skip-link {
+                position: fixed;
+                top: 8px;
+                left: 8px;
+                z-index: 100;
+                padding: 10px 14px;
+                color: #fff;
+                background: var(--primary-strong);
+                border-radius: var(--radius-sm);
+                transform: translateY(-160%);
+            }
+            .skip-link:focus {
+                transform: translateY(0);
+            }
+            .app-header {
+                color: #fff;
+                background: var(--primary-strong);
+            }
+            .header-inner,
+            .main,
+            .footer-inner {
+                width: min(1200px, calc(100% - 32px));
+                margin-inline: auto;
+            }
+            .header-inner {
+                min-height: 78px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--s5);
+            }
+            .brand {
+                display: flex;
+                align-items: center;
+                gap: var(--s3);
+                color: inherit;
+                text-decoration: none;
+            }
+            .brand-mark {
+                width: 42px;
+                height: 42px;
+                display: grid;
+                place-items: center;
+                flex: none;
+                color: var(--primary-strong);
+                background: #fff;
+                border-radius: 10px;
+                font: 700 17px/1 var(--mono);
+                letter-spacing: -0.06em;
+            }
+            .brand-name {
+                display: block;
+                font-weight: 760;
+                line-height: 1.2;
+                letter-spacing: 0.02em;
+            }
+            .brand-sub {
+                display: block;
+                margin-top: 2px;
+                color: #c7e1e3;
+                font-size: 13px;
+                line-height: 1.3;
+            }
+            .local-status {
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                color: #fff;
+                background: transparent;
+                border: 1px solid rgba(255, 255, 255, 0.34);
+                border-radius: var(--radius-sm);
+            }
+            .status-dot {
+                width: 9px;
+                height: 9px;
+                flex: none;
+                background: #70d69b;
+                border-radius: 50%;
+                box-shadow: 0 0 0 3px rgba(112, 214, 155, 0.18);
+            }
+            .local-status span {
+                display: block;
+                font-size: 13px;
+                font-weight: 700;
+            }
+            .local-status small {
+                display: block;
+                color: #c7e1e3;
+                font-size: 11px;
+            }
+
+            .main {
+                padding-block: var(--s6) var(--s7);
+            }
+            .intro {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                align-items: end;
+                gap: var(--s5);
+                margin-bottom: var(--s5);
+            }
+            .eyebrow {
+                margin: 0 0 var(--s2);
+                color: var(--primary);
+                font-size: 13px;
+                font-weight: 800;
+                letter-spacing: 0.09em;
+                text-transform: uppercase;
+            }
+            h1,
+            h2,
+            h3,
+            p {
+                margin-top: 0;
+            }
+            h1 {
+                max-width: 760px;
+                margin-bottom: var(--s3);
+                font: 700 clamp(32px, 4.4vw, 52px)/1.08 var(--display);
+                letter-spacing: -0.025em;
+            }
+            .lede {
+                max-width: 100%;
+                margin: 0;
+                color: var(--text-muted);
+                font-size: 18px;
+            }
+            .privacy-note {
+                max-width: 100%;
+                display: flex;
+                gap: var(--s3);
+                align-items: flex-start;
+                padding: var(--s4);
+                background: var(--surface-blue);
+                border-radius: var(--radius-md);
+                color: var(--primary-strong);
+                font-size: 14px;
+                margin-bottom: 0;
+            }
+            .privacy-note svg {
+                flex: none;
+                margin-top: 2px;
+            }
+
+            .stepper {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                margin: 0 0 var(--s4);
+                padding: 0;
+                list-style: none;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-md);
+                overflow: hidden;
+            }
+            .step {
+                position: relative;
+                display: flex;
+                align-items: center;
+                gap: var(--s2);
+                min-height: 56px;
+                padding: var(--s2) var(--s4);
+                color: var(--text-muted);
+                border-right: 1px solid var(--border);
+            }
+            .step:last-child {
+                border-right: 0;
+            }
+            .step-number {
+                width: 28px;
+                height: 28px;
+                display: grid;
+                place-items: center;
+                flex: none;
+                border: 1px solid var(--border-strong);
+                border-radius: 50%;
+                font-size: 13px;
+                font-weight: 800;
+            }
+            .step-label {
+                display: block;
+                font-size: 14px;
+                font-weight: 750;
+                line-height: 1.25;
+            }
+            .step.is-active {
+                color: var(--primary-strong);
+                background: var(--surface-blue);
+            }
+            .step.is-active .step-number {
+                color: #fff;
+                background: var(--primary);
+                border-color: var(--primary);
+            }
+            .step.is-complete .step-number {
+                color: #fff;
+                background: var(--success);
+                border-color: var(--success);
+            }
+
+            .panel {
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow);
+                overflow: hidden;
+            }
+            .panel-head {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: var(--s4);
+                padding: var(--s4) var(--s4) 0;
+            }
+            .panel-title {
+                margin: 0;
+                font: 700 25px/1.2 var(--display);
+                letter-spacing: -0.015em;
+            }
+            .panel-subtitle {
+                max-width: 100%;
+                margin: var(--s2) 0 0;
+                color: var(--text-muted);
+            }
+            .prototype-tag {
+                flex: none;
+                padding: 5px 9px;
+                color: #684b00;
+                background: var(--warning-bg);
+                border: 1px solid #e8cf83;
+                border-radius: 999px;
+                font-size: 12px;
+                font-weight: 800;
+            }
+            .panel-body {
+                padding: var(--s4);
+            }
+
+            .source-grid {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                gap: var(--s4);
+            }
+            .source-card,
+            .config-card {
+                padding: var(--s4);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-md);
+            }
+            .source-card {
+                background: linear-gradient(180deg, #fff 0%, #f8fbfb 100%);
+            }
+            .config-card {
+                background: #fbfcfc;
+                transition:
+                    background 0.18s var(--ease),
+                    border-color 0.18s var(--ease),
+                    opacity 0.18s var(--ease);
+            }
+            .config-card.is-locked {
+                color: var(--text-muted);
+                background: #f0f3f4;
+                border-color: #d8e0e2;
+            }
+            .config-card.is-locked .section-kicker {
+                color: var(--text-muted);
+            }
+            .config-card.is-locked .radio-card,
+            .config-card.is-locked .always-note {
+                opacity: 0.58;
+            }
+            .locked-note {
+                display: flex;
+                align-items: flex-start;
+                gap: var(--s2);
+                margin: var(--s4) 0 0;
+                padding: var(--s3);
+                color: var(--text-muted);
+                background: #e4eaec;
+                border-radius: var(--radius-sm);
+                font-size: 13px;
+                font-weight: 700;
+            }
+            .locked-note svg {
+                flex: none;
+                margin-top: 2px;
+            }
+            .section-kicker {
+                display: flex;
+                align-items: center;
+                gap: var(--s2);
+                margin-bottom: var(--s3);
+                color: var(--primary);
+                font-size: 13px;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+            .section-kicker svg {
+                width: 18px;
+                height: 18px;
+            }
+            .section-title {
+                margin: 0 0 var(--s2);
+                font-size: 18px;
+                line-height: 1.35;
+            }
+            .helper {
+                margin: 0;
+                color: var(--text-muted);
+                font-size: 14px;
+            }
+            .field-label {
+                display: block;
+                margin-bottom: var(--s2);
+                font-size: 14px;
+                font-weight: 750;
+            }
+            .select-wrap {
+                position: relative;
+                margin-top: var(--s4);
+            }
+            .select-wrap select {
+                width: 100%;
+                min-height: 48px;
+                padding: 10px 44px 10px 12px;
+                color: var(--text);
+                background: #fff;
+                border: 1px solid var(--border-strong);
+                border-radius: var(--radius-sm);
+                appearance: none;
+            }
+            .select-wrap svg {
+                position: absolute;
+                right: 14px;
+                top: 50%;
+                transform: translateY(-50%);
+                pointer-events: none;
+            }
+            .divider {
+                display: flex;
+                align-items: center;
+                gap: var(--s3);
+                margin: var(--s4) 0;
+                color: var(--text-muted);
+                font-size: 12px;
+                font-weight: 800;
+                text-transform: uppercase;
+            }
+            .divider::before,
+            .divider::after {
+                content: "";
+                height: 1px;
+                flex: 1;
+                background: var(--border);
+            }
+            .file-button {
+                min-height: 50px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: var(--s2);
+                width: 100%;
+                padding: 11px 16px;
+                color: var(--primary-strong);
+                background: #fff;
+                border: 1px dashed var(--primary);
+                border-radius: var(--radius-sm);
+                font-weight: 750;
+                cursor: pointer;
+                transition:
+                    background 0.18s var(--ease),
+                    border-color 0.18s var(--ease);
+            }
+            .file-button input {
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                opacity: 0;
+                pointer-events: none;
+            }
+            .limit-note {
+                display: flex;
+                align-items: flex-start;
+                gap: var(--s2);
+                margin: var(--s3) 0 0;
+                color: var(--text-muted);
+                font-size: 13px;
+            }
+            .limit-note svg {
+                flex: none;
+                margin-top: 3px;
+            }
+
+            .radio-list {
+                display: grid;
+                gap: var(--s2);
+                margin-top: var(--s3);
+            }
+            .radio-card {
+                position: relative;
+                display: grid;
+                grid-template-columns: auto 1fr;
+                align-items: start;
+                gap: var(--s3);
+                min-height: 72px;
+                padding: var(--s3);
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+                cursor: pointer;
+            }
+            .radio-card:has(input:checked) {
+                background: var(--surface-blue);
+                border-color: var(--primary);
+                box-shadow: inset 0 0 0 1px var(--primary);
+            }
+            .radio-card input {
+                width: 19px;
+                height: 19px;
+                margin: 3px 0 0;
+                accent-color: var(--primary);
+            }
+            .radio-title {
+                display: block;
+                font-weight: 780;
+            }
+            .radio-help {
+                display: block;
+                margin-top: 2px;
+                color: var(--text-muted);
+                font-size: 13px;
+            }
+            .always-note {
+                display: flex;
+                align-items: flex-start;
+                gap: var(--s3);
+                margin-top: var(--s3);
+                padding: var(--s3);
+                color: #1b5672;
+                background: #eef7fb;
+                border-radius: var(--radius-sm);
+                font-size: 13px;
+            }
+            .always-note svg {
+                flex: none;
+                margin-top: 2px;
+            }
+
+            .selected-file {
+                display: flex;
+                align-items: center;
+                gap: var(--s3);
+                padding: var(--s3);
+                background: #f8fbfb;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-md);
+            }
+            .file-icon {
+                width: 48px;
+                height: 48px;
+                display: grid;
+                place-items: center;
+                flex: none;
+                color: var(--primary);
+                background: var(--surface-blue);
+                border-radius: 10px;
+            }
+            .file-name {
+                display: block;
+                color: var(--text);
+                font: 700 14px/1.35 var(--mono);
+                overflow-wrap: anywhere;
+            }
+            .file-meta {
+                display: block;
+                margin-top: 3px;
+                color: var(--text-muted);
+                font-size: 13px;
+            }
+            .text-button {
+                min-height: 44px;
+                padding: 8px 10px;
+                color: var(--primary);
+                background: transparent;
+                border: 0;
+                border-radius: var(--radius-sm);
+                font-weight: 750;
+            }
+            .config-summary {
+                display: grid;
+                grid-template-columns: 1fr auto;
+                gap: var(--s4);
+                align-items: center;
+                margin-top: var(--s4);
+                padding-top: var(--s4);
+                border-top: 1px solid #bad5d8;
+            }
+            .summary-label {
+                display: block;
+                color: var(--text-muted);
+                font-size: 12px;
+                font-weight: 800;
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+            }
+            .summary-value {
+                display: block;
+                margin-top: 2px;
+                font-weight: 800;
+            }
+            .panel-actions {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--s3);
+                padding: var(--s3) var(--s4);
+                background: #f8fafb;
+                border-top: 1px solid var(--border);
+            }
+            .action-hint {
+                margin: 0;
+                color: var(--text-muted);
+                font-size: 13px;
+            }
+            .primary-button,
+            .secondary-button,
+            .download-button {
+                min-height: 48px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: var(--s2);
+                padding: 10px 18px;
+                border-radius: var(--radius-sm);
+                font-weight: 780;
+                text-decoration: none;
+                transition:
+                    background 0.18s var(--ease),
+                    transform 0.18s var(--ease);
+            }
+            .primary-button {
+                color: #fff;
+                background: var(--primary);
+                border: 1px solid var(--primary);
+            }
+            .secondary-button {
+                color: var(--primary-strong);
+                background: #fff;
+                border: 1px solid var(--border-strong);
+            }
+            .primary-button:disabled {
+                cursor: not-allowed;
+                color: #809195;
+                background: #dce4e6;
+                border-color: #dce4e6;
+            }
+
+            .state-center {
+                min-height: 390px;
+                display: grid;
+                place-items: center;
+                padding: var(--s7) var(--s5);
+                text-align: center;
+            }
+            .state-content {
+                max-width: 580px;
+            }
+            .spinner {
+                width: 56px;
+                height: 56px;
+                margin: 0 auto var(--s5);
+                border: 5px solid #cfe0e2;
+                border-top-color: var(--primary);
+                border-radius: 50%;
+                animation: spin 0.9s linear infinite;
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+            .state-icon {
+                width: 64px;
+                height: 64px;
+                display: grid;
+                place-items: center;
+                margin: 0 auto var(--s5);
+                border-radius: 50%;
+            }
+            .state-icon.error {
+                color: var(--danger);
+                background: var(--danger-bg);
+            }
+            .state-icon.connection {
+                color: var(--warning);
+                background: var(--warning-bg);
+            }
+            .state-title {
+                margin: 0 0 var(--s2);
+                font: 700 28px/1.2 var(--display);
+            }
+            .state-copy {
+                margin: 0 auto var(--s5);
+                color: var(--text-muted);
+            }
+            .processing-file {
+                display: inline-flex;
+                align-items: center;
+                gap: var(--s2);
+                max-width: 100%;
+                padding: 8px 12px;
+                background: var(--surface-muted);
+                border-radius: 999px;
+                color: var(--text);
+                font: 700 13px/1.35 var(--mono);
+            }
+            .processing-file span {
+                overflow-wrap: anywhere;
+            }
+            .processing-note {
+                margin: var(--s5) auto 0;
+                padding-top: var(--s4);
+                border-top: 1px solid var(--border);
+                color: var(--text-muted);
+                font-size: 13px;
+            }
+
+            .success-banner {
+                display: grid;
+                grid-template-columns: auto 1fr auto;
+                align-items: center;
+                gap: var(--s4);
+                padding: var(--s5);
+                color: #164e32;
+                background: var(--success-bg);
+                border-bottom: 1px solid #b8ddc8;
+            }
+            .success-badge {
+                width: 48px;
+                height: 48px;
+                display: grid;
+                place-items: center;
+                color: #fff;
+                background: var(--success);
+                border-radius: 50%;
+            }
+            .success-banner h2 {
+                margin: 0;
+                font: 700 24px/1.2 var(--display);
+            }
+            .success-banner p {
+                margin: 3px 0 0;
+                color: #37664d;
+                font-size: 14px;
+            }
+            .elapsed {
+                text-align: right;
+            }
+            .elapsed strong {
+                display: block;
+                font: 750 22px/1.2 var(--mono);
+            }
+            .elapsed span {
+                display: block;
+                color: #37664d;
+                font-size: 12px;
+            }
+            .results-body {
+                padding: var(--s4);
+            }
+            .metrics {
+                --od-cols: 4;
+                --od-gap: 12px;
+                margin-bottom: var(--s5);
+            }
+            .metric {
+                min-height: 112px;
+                padding: var(--s4);
+                background: #f8fafb;
+                border-top: 3px solid var(--primary);
+                border-radius: var(--radius-sm);
+            }
+            .metric-value {
+                color: var(--primary-strong);
+                font: 750 clamp(27px, 3vw, 36px)/1 var(--mono);
+            }
+            .metric-label {
+                margin-top: var(--s3);
+                color: var(--text-muted);
+                font-size: 13px;
+                font-weight: 700;
+            }
+            .results-section + .results-section {
+                margin-top: var(--s5);
+            }
+            .results-heading {
+                display: flex;
+                align-items: end;
+                justify-content: space-between;
+                gap: var(--s4);
+                margin-bottom: var(--s3);
+            }
+            .results-heading h3 {
+                margin: 0;
+                font-size: 18px;
+            }
+            .results-heading p {
+                margin: 0;
+                color: var(--text-muted);
+                font-size: 13px;
+            }
+            .elements {
+                display: flex;
+                flex-wrap: wrap;
+                gap: var(--s2);
+                margin: 0;
+                padding: 0;
+                list-style: none;
+            }
+            .element-chip {
+                min-width: 54px;
+                padding: 8px 10px;
+                text-align: center;
+                color: var(--primary-strong);
+                background: var(--surface-blue);
+                border: 1px solid #bad5d8;
+                border-radius: var(--radius-sm);
+                font: 800 14px/1 var(--mono);
+            }
+            .table-shell {
+                max-width: 100%;
+                overflow: auto;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-sm);
+            }
+            table {
+                width: 100%;
+                min-width: 820px;
+                border-collapse: collapse;
+                font-size: 13px;
+            }
+            caption {
+                padding: 10px 12px;
+                text-align: left;
+                color: var(--text-muted);
+                background: #f8fafb;
+                border-bottom: 1px solid var(--border);
+                font-size: 12px;
+            }
+            th,
+            td {
+                padding: 10px 12px;
+                border-bottom: 1px solid #dfe6e8;
+                white-space: nowrap;
+            }
+            th {
+                position: sticky;
+                top: 0;
+                z-index: 2;
+                text-align: left;
+                color: #fff;
+                background: var(--primary-strong);
+                font-weight: 750;
+            }
+            th:first-child {
+                left: 0;
+                z-index: 3;
+            }
+            td:first-child {
+                position: sticky;
+                left: 0;
+                z-index: 1;
+                background: #fff;
+                font-weight: 750;
+            }
+            tbody tr:nth-child(even) td {
+                background: #f8fafb;
+            }
+            tbody tr:nth-child(even) td:first-child {
+                background: #f8fafb;
+            }
+            td.num,
+            th.num {
+                text-align: right;
+                font-family: var(--mono);
+                font-variant-numeric: tabular-nums;
+            }
+            .downloads {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: var(--s4);
+            }
+            .download-card {
+                display: grid;
+                grid-template-columns: auto 1fr auto;
+                align-items: center;
+                gap: var(--s4);
+                padding: var(--s4);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-md);
+            }
+            .download-icon {
+                width: 44px;
+                height: 44px;
+                display: grid;
+                place-items: center;
+                color: var(--primary);
+                background: var(--surface-blue);
+                border-radius: var(--radius-sm);
+            }
+            .download-name {
+                display: block;
+                font: 700 13px/1.35 var(--mono);
+                overflow-wrap: anywhere;
+            }
+            .download-meta {
+                display: block;
+                margin-top: 3px;
+                color: var(--text-muted);
+                font-size: 12px;
+            }
+            .download-button {
+                min-width: 110px;
+                color: #fff;
+                background: var(--primary);
+                border: 1px solid var(--primary);
+            }
+
+
+            .app-footer {
+                padding-block: var(--s5);
+                color: var(--text-muted);
+                background: #e8eef0;
+                border-top: 1px solid var(--border);
+            }
+            .footer-inner {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--s4);
+                font-size: 13px;
+            }
+            .footer-inner p {
+                margin: 0;
+            }
+            .footer-inner strong {
+                color: var(--text);
+            }
+
+            @media (hover: hover) {
+                .file-button:hover {
+                    background: var(--surface-blue);
+                    border-color: var(--primary-strong);
+                }
+                .primary-button:hover,
+                .download-button:hover {
+                    background: var(--primary-strong);
+                    transform: translateY(-1px);
+                }
+                .secondary-button:hover,
+                .text-button:hover {
+                    background: var(--surface-muted);
+                }
+                .local-status:hover {
+                    background: rgba(255, 255, 255, 0.08);
+                }
+            }
+            @media (max-width: 1024px) {
+                .intro {
+                    grid-template-columns: 1fr;
+                }
+                .privacy-note {
+                    max-width: none;
+                }
+                .source-grid {
+                    grid-template-columns: 1fr;
+                }
+                .metrics {
+                    --od-cols: 2;
+                }
+                .ux-grid {
+                    --od-cols: 2;
+                }
+                .downloads {
+                    grid-template-columns: 1fr;
+                }
+            }
+            @media (max-width: 767px) {
+                .header-inner,
+                .main,
+                .footer-inner {
+                    width: min(100% - 24px, 1200px);
+                }
+                .header-inner {
+                    min-height: 70px;
+                }
+                .brand-sub,
+                .local-status small {
+                    display: none;
+                }
+                .local-status {
+                    width: 44px;
+                    padding: 0;
+                    justify-content: center;
+                    border-radius: 50%;
+                }
+                .local-status span {
+                    position: absolute;
+                    width: 1px;
+                    height: 1px;
+                    overflow: hidden;
+                    clip-path: inset(50%);
+                }
+                .main {
+                    padding-block: var(--s5) var(--s6);
+                }
+                .intro {
+                    margin-bottom: var(--s4);
+                }
+                h1 {
+                    font-size: 36px;
+                }
+                .lede {
+                    font-size: 16px;
+                }
+                .stepper {
+                    grid-template-columns: repeat(4, minmax(62px, 1fr));
+                }
+                .step {
+                    min-height: 60px;
+                    justify-content: center;
+                    padding: var(--s2);
+                    border-right: 0;
+                    border-bottom: 3px solid transparent;
+                }
+                .step-label {
+                    position: absolute;
+                    width: 1px;
+                    height: 1px;
+                    overflow: hidden;
+                    clip-path: inset(50%);
+                }
+                .step.is-active {
+                    border-bottom-color: var(--primary);
+                }
+                .panel-head,
+                .panel-body,
+                .results-body {
+                    padding-left: var(--s4);
+                    padding-right: var(--s4);
+                }
+                .panel-head {
+                    flex-direction: column;
+                    gap: var(--s3);
+                }
+                .source-card,
+                .config-card {
+                    padding: var(--s4);
+                }
+                .panel-actions {
+                    align-items: stretch;
+                    flex-direction: column;
+                    padding: var(--s4);
+                }
+                .panel-actions .primary-button {
+                    width: 100%;
+                }
+                .action-hint {
+                    order: 2;
+                    text-align: center;
+                }
+                .success-banner {
+                    grid-template-columns: auto 1fr;
+                    padding: var(--s4);
+                }
+                .elapsed {
+                    grid-column: 2;
+                    text-align: left;
+                }
+                .metrics {
+                    --od-cols: 2;
+                    --od-gap: 8px;
+                }
+                .metric {
+                    min-height: 104px;
+                    padding: var(--s3);
+                }
+                .download-card {
+                    grid-template-columns: auto 1fr;
+                }
+                .download-button {
+                    grid-column: 1/-1;
+                    width: 100%;
+                }
+                .ux-grid {
+                    --od-cols: 1;
+                }
+                .footer-inner {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+            }
+            @media (max-width: 430px) {
+                .selected-file {
+                    align-items: flex-start;
+                }
+                .selected-file .text-button {
+                    grid-column: 1/-1;
+                }
+                .config-summary {
+                    grid-template-columns: 1fr;
+                }
+                .metrics {
+                    --od-cols: 1;
+                }
+                .results-heading {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                *,
+                *::before,
+                *::after {
+                    scroll-behavior: auto !important;
+                    animation-duration: 0.01ms !important;
+                    animation-iteration-count: 1 !important;
+                    transition-duration: 0.01ms !important;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+        <header class="app-header">
+            <div class="header-inner">
+                <a
+                    class="brand"
+                    href="#"
+                    aria-label="REX, início"
+                    data-reset=""
+                >
+                    <span class="brand-mark" aria-hidden="true">REX</span>
+                    <span
+                        ><span class="brand-name">MEV/EDS Report Extractor</span
+                        ><span class="brand-sub">
+                            <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"
+                                ></path>
+                                <path d="m9 12 2 2 4-5"></path>
+                            </svg>
+                            Processamento local. Nenhum arquivo é enviado para a
+                            internet.
+                        </span></span
+                    >
+                </a>
+                <button
+                    class="local-status"
+                    type="button"
+                    id="connection-status"
+                    aria-label="Serviço local disponível. Verificar conexão"
+                >
+                    <span class="status-dot" aria-hidden="true"></span>
+                    <span>Status do serviço local</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="main" id="conteudo">
+            <ol class="stepper" aria-label="Etapas da extração">
+                <li class="step is-active" data-step="1">
+                    <span class="step-number">1</span
+                    ><span class="step-label">Escolher laudo</span>
+                </li>
+                <li class="step" data-step="2">
+                    <span class="step-number">2</span
+                    ><span class="step-label">Organizar XLSX</span>
+                </li>
+                <li class="step" data-step="3">
+                    <span class="step-number">3</span
+                    ><span class="step-label">Extrair dados</span>
+                </li>
+                <li class="step" data-step="4">
+                    <span class="step-number">4</span
+                    ><span class="step-label">Baixar resultados</span>
+                </li>
+            </ol>
+
+            <section
+                class="panel"
+                id="setup-view"
+                aria-labelledby="setup-title"
+            >
+                <div class="panel-head">
+                    <div>
+                        <h2 class="panel-title" id="setup-title">
+                            Prepare a extração
+                        </h2>
+                        <p class="panel-subtitle">
+                            Comece pelo laudo. Depois escolha apenas como o XLSX
+                            deve ser separado.
+                        </p>
+                    </div>
+                    <span class="prototype-tag">Processamento local</span>
+                </div>
+                <div class="panel-body">
+                    <div class="source-grid">
+                        <section
+                            class="source-card"
+                            aria-labelledby="source-title"
+                        >
+                            <div class="section-kicker">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.75"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"
+                                    ></path>
+                                    <path d="M14 2v6h6M8 13h8M8 17h6"></path>
+                                </svg>
+                                1 · Laudo de origem
+                            </div>
+                            <h3 class="section-title" id="source-title">
+                                Qual laudo será processado?
+                            </h3>
+                            <p class="helper">
+                                Localize no computador o laudo que deseja
+                                processar.
+                            </p>
+                            <div id="source-picker">
+                                <label class="field-label" for="file-input"
+                                    >Arquivo do laudo</label
+                                >
+                                <label class="file-button" for="file-input">
+                                    <svg
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.75"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M12 3v12M7 8l5-5 5 5"></path>
+                                        <path
+                                            d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"
+                                        ></path>
+                                    </svg>
+                                    Localizar arquivo DOCX
+                                    <input
+                                        id="file-input"
+                                        type="file"
+                                        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                    />
+                                </label>
+                                <p class="limit-note">
+                                    <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.75"
+                                        aria-hidden="true"
+                                    >
+                                        <circle cx="12" cy="12" r="9"></circle>
+                                        <path d="M12 11v5M12 8h.01"></path>
+                                    </svg>
+                                    Apenas DOCX não vazio, com até 250 MB.
+                                </p>
+                            </div>
+                            <div
+                                class="selected-file"
+                                id="selected-file"
+                                hidden=""
+                            >
+                                <span class="file-icon" aria-hidden="true">
+                                    <svg
+                                        width="25"
+                                        height="25"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.75"
+                                    >
+                                        <path
+                                            d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"
+                                        ></path>
+                                        <path
+                                            d="M14 2v6h6M8 13h8M8 17h6"
+                                        ></path>
+                                    </svg>
+                                </span>
+                                <span class="od-fill"
+                                    ><span
+                                        class="file-name"
+                                        id="selected-name"
+                                    ></span
+                                    ><span
+                                        class="file-meta"
+                                        id="selected-meta"
+                                    ></span
+                                ></span>
+                                <button
+                                    class="text-button od-touch"
+                                    type="button"
+                                    id="change-file"
+                                >
+                                    Trocar
+                                </button>
+                            </div>
+                        </section>
+
+                        <section
+                            class="config-card is-locked"
+                            id="config-card"
+                            aria-labelledby="config-title"
+                            aria-disabled="true"
+                        >
+                            <div class="section-kicker">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.75"
+                                    aria-hidden="true"
+                                >
+                                    <rect
+                                        x="3"
+                                        y="3"
+                                        width="18"
+                                        height="18"
+                                        rx="2"
+                                    ></rect>
+                                    <path d="M3 9h18M9 21V9"></path>
+                                </svg>
+                                2 · Organização do XLSX
+                            </div>
+                            <h3 class="section-title" id="config-title">
+                                Como organizar o arquivo Excel?
+                            </h3>
+                            <p class="helper">
+                                Essa escolha afeta somente o XLSX gerado.
+                            </p>
+                            <div class="locked-note" id="config-locked-note">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.75"
+                                    aria-hidden="true"
+                                >
+                                    <rect
+                                        x="5"
+                                        y="10"
+                                        width="14"
+                                        height="10"
+                                        rx="2"
+                                    ></rect>
+                                    <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+                                </svg>
+                                <span
+                                    >Selecione um arquivo na etapa 1 para
+                                    liberar estas opções.</span
+                                >
+                            </div>
+                            <fieldset
+                                id="xlsx-options"
+                                disabled
+                                style="border: 0; padding: 0; margin: 0"
+                            >
+                                <legend
+                                    class="field-label"
+                                    style="margin-top: 16px"
+                                >
+                                    Formato das abas
+                                </legend>
+                                <div class="radio-list">
+                                    <label class="radio-card">
+                                        <input
+                                            type="radio"
+                                            name="xlsx-mode"
+                                            value="consolidated"
+                                            checked=""
+                                        />
+                                        <span
+                                            ><span class="radio-title"
+                                                >Uma aba consolidada</span
+                                            ><span class="radio-help"
+                                                >Todas as medições reunidas em
+                                                uma única tabela.</span
+                                            ></span
+                                        >
+                                    </label>
+                                    <label class="radio-card">
+                                        <input
+                                            type="radio"
+                                            name="xlsx-mode"
+                                            value="per-sample"
+                                        />
+                                        <span
+                                            ><span class="radio-title"
+                                                >Uma aba por amostra</span
+                                            ><span class="radio-help"
+                                                >Cria uma aba separada para cada
+                                                amostra detectada.</span
+                                            ></span
+                                        >
+                                    </label>
+                                </div>
+                            </fieldset>
+                            <div class="always-note">
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.75"
+                                    aria-hidden="true"
+                                >
+                                    <circle cx="12" cy="12" r="9"></circle>
+                                    <path d="M12 11v5M12 8h.01"></path>
+                                </svg>
+                                <span
+                                    ><strong>O CSV é sempre consolidado.</strong
+                                    ><br />Ele reunirá todas as amostras,
+                                    qualquer que seja a opção acima.</span
+                                >
+                            </div>
+                        </section>
+                    </div>
+                </div>
+                <div class="panel-actions">
+                    <p class="action-hint" id="action-hint">
+                        Selecione um laudo para continuar.
+                    </p>
+                    <button
+                        class="primary-button"
+                        id="process-button"
+                        type="button"
+                        disabled=""
+                    >
+                        Extrair dados
+                        <svg
+                            width="19"
+                            height="19"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.75"
+                            aria-hidden="true"
+                        >
+                            <path d="M5 12h14M13 6l6 6-6 6"></path>
+                        </svg>
+                    </button>
+                </div>
+            </section>
+
+            <section
+                class="panel"
+                id="processing-view"
+                aria-labelledby="processing-title"
+                hidden=""
+            >
+                <div class="state-center" aria-live="polite">
+                    <div class="state-content">
+                        <div class="spinner" aria-hidden="true"></div>
+                        <p class="eyebrow">Extração em andamento</p>
+                        <h2 class="state-title" id="processing-title">
+                            Analisando o laudo
+                        </h2>
+                        <p class="state-copy">
+                            O REX está identificando amostras, pontos EDS e
+                            medições químicas. Mantenha esta página aberta.
+                        </p>
+                        <div class="processing-file">
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"
+                                ></path>
+                                <path d="M14 2v6h6"></path>
+                            </svg>
+                            <span id="processing-name"></span>
+                        </div>
+                        <p class="processing-note">
+                            <strong
+                                >O tempo depende do tamanho e da complexidade do
+                                documento.</strong
+                            ><br />O extrator atual não informa percentual de
+                            conclusão.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <section
+                class="panel"
+                id="file-error-view"
+                aria-labelledby="file-error-title"
+                hidden=""
+            >
+                <div class="state-center">
+                    <div class="state-content">
+                        <div class="state-icon error" aria-hidden="true">
+                            <svg
+                                width="31"
+                                height="31"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                            >
+                                <path d="M12 9v4M12 17h.01"></path>
+                                <path
+                                    d="M10.3 3.7 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z"
+                                ></path>
+                            </svg>
+                        </div>
+                        <p class="eyebrow">Não foi possível continuar</p>
+                        <h2 class="state-title" id="file-error-title">
+                            Não foi possível processar este laudo
+                        </h2>
+                        <p class="state-copy" id="file-error-copy">
+                            Escolha um arquivo DOCX não vazio, com até 250 MB.
+                            Verifique o arquivo e tente novamente.
+                        </p>
+                        <button
+                            class="primary-button"
+                            type="button"
+                            data-back=""
+                        >
+                            Escolher outro arquivo
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section
+                class="panel"
+                id="connection-error-view"
+                aria-labelledby="connection-error-title"
+                hidden=""
+            >
+                <div class="state-center">
+                    <div class="state-content">
+                        <div class="state-icon connection" aria-hidden="true">
+                            <svg
+                                width="31"
+                                height="31"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.75"
+                            >
+                                <path
+                                    d="M5 12.55a11 11 0 0 1 14.08 0M8.5 16a6 6 0 0 1 7 0M12 20h.01"
+                                ></path>
+                                <path d="m3 3 18 18"></path>
+                            </svg>
+                        </div>
+                        <p class="eyebrow">Serviço local indisponível</p>
+                        <h2 class="state-title" id="connection-error-title">
+                            A página não encontrou o extrator
+                        </h2>
+                        <p class="state-copy">
+                            Confirme se o REX continua aberto neste computador.
+                            Se a conexão caiu durante a extração, confirme a
+                            situação dos arquivos antes de tentar novamente.
+                        </p>
+                        <div
+                            class="od-cluster"
+                            style="--od-gap: 12px; justify-content: center"
+                        >
+                            <button
+                                class="primary-button"
+                                type="button"
+                                id="retry-connection"
+                            >
+                                Tentar novamente
+                            </button>
+                            <button
+                                class="secondary-button"
+                                type="button"
+                                data-back=""
+                            >
+                                Voltar à seleção
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section
+                class="panel"
+                id="success-view"
+                aria-labelledby="success-title"
+                hidden=""
+            >
+                <div class="success-banner">
+                    <span class="success-badge" aria-hidden="true">
+                        <svg
+                            width="25"
+                            height="25"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path d="m5 12 4 4L19 6"></path>
+                        </svg>
+                    </span>
+                    <div>
+                        <h2 id="success-title">Extração concluída</h2>
+                        <p>
+                            Os resultados estão prontos para revisão e download.
+                        </p>
+                    </div>
+                    <div class="elapsed">
+                        <strong id="elapsed-time">—</strong
+                        ><span>tempo decorrido</span>
+                    </div>
+                </div>
+                <div class="results-body">
+                    <div
+                        class="od-grid metrics"
+                        aria-label="Resumo da extração"
+                    >
+                        <div class="od-stat metric">
+                            <span class="metric-value" id="samples-count">0</span
+                            ><span class="metric-label"
+                                >Amostras detectadas</span
+                            >
+                        </div>
+                        <div class="od-stat metric">
+                            <span class="metric-value" id="points-count">0</span
+                            ><span class="metric-label">Pontos EDS</span>
+                        </div>
+                        <div class="od-stat metric">
+                            <span class="metric-value" id="rows-count">0</span
+                            ><span class="metric-label">Medições químicas</span>
+                        </div>
+                        <div class="od-stat metric">
+                            <span class="metric-value" id="elements-count">0</span
+                            ><span class="metric-label"
+                                >Elementos encontrados</span
+                            >
+                        </div>
+                    </div>
+
+                    <section
+                        class="results-section"
+                        aria-labelledby="elements-title"
+                    >
+                        <div class="results-heading">
+                            <div>
+                                <h3 id="elements-title">
+                                    Elementos encontrados
+                                </h3>
+                                <p>
+                                    Identificados nas medições do laudo.
+                                </p>
+                            </div>
+                        </div>
+                        <ul class="elements" id="elements-list"></ul>
+                    </section>
+
+                    <section
+                        class="results-section"
+                        aria-labelledby="preview-title"
+                    >
+                        <div class="results-heading">
+                            <div>
+                                <h3 id="preview-title">Prévia dos dados</h3>
+                                <p id="preview-count">Prévia das medições extraídas</p>
+                            </div>
+                            <span class="prototype-tag"
+                                >Prévia consolidada</span
+                            >
+                        </div>
+                        <div
+                            class="table-shell"
+                            tabindex="0"
+                            aria-label="Tabela rolável com prévia dos dados"
+                        >
+                            <table>
+                                <caption>
+                                    Cada linha corresponde a uma medição química.
+                                    Role horizontalmente para consultar todas as colunas.
+                                </caption>
+                                <thead>
+                                    <tr>
+                                        <th>Amostra</th>
+                                        <th>Micrografia</th>
+                                        <th class="num">Série</th>
+                                        <th class="num">Ponto</th>
+                                        <th>Elemento</th>
+                                        <th>Linha</th>
+                                        <th class="num">% Peso</th>
+                                        <th class="num">Sigma</th>
+                                        <th class="num">% Atômica</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="preview-body"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section
+                        class="results-section"
+                        aria-labelledby="downloads-title"
+                    >
+                        <div class="results-heading">
+                            <div>
+                                <h3 id="downloads-title">Baixar resultados</h3>
+                                <p>
+                                    Arquivos gerados a partir do nome do laudo.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="downloads">
+                            <article class="download-card">
+                                <span class="download-icon" aria-hidden="true"
+                                    ><svg
+                                        width="23"
+                                        height="23"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.75"
+                                    >
+                                        <rect
+                                            x="3"
+                                            y="3"
+                                            width="18"
+                                            height="18"
+                                            rx="2"
+                                        ></rect>
+                                        <path d="M3 9h18M9 21V9"></path></svg
+                                ></span>
+                                <span class="od-fill"
+                                    ><span class="download-name" id="xlsx-name"
+                                        ></span
+                                    ><span class="download-meta" id="xlsx-meta"
+                                        >XLSX · uma aba consolidada</span
+                                    ></span
+                                >
+                                <a
+                                    class="download-button"
+                                    href="/api/download/excel"
+                                    download
+                                >
+                                    Baixar XLSX
+                                </a>
+                            </article>
+                            <article class="download-card">
+                                <span class="download-icon" aria-hidden="true"
+                                    ><svg
+                                        width="23"
+                                        height="23"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.75"
+                                    >
+                                        <path
+                                            d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"
+                                        ></path>
+                                        <path
+                                            d="M14 2v6h6M8 13h8M8 17h8"
+                                        ></path></svg
+                                ></span>
+                                <span class="od-fill"
+                                    ><span class="download-name" id="csv-name"
+                                        ></span
+                                    ><span class="download-meta"
+                                        >CSV · consolidado</span
+                                    ></span
+                                >
+                                <a
+                                    class="download-button"
+                                    href="/api/download/csv"
+                                    download
+                                >
+                                    Baixar CSV
+                                </a>
+                            </article>
+                        </div>
+                    </section>
+                </div>
+                <div class="panel-actions">
+                    <p class="action-hint">
+                        O XLSX segue a organização escolhida. O CSV sempre reúne todas as amostras.
+                    </p>
+                    <button
+                        class="secondary-button"
+                        type="button"
+                        data-reset=""
+                    >
+                        Processar outro laudo
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <div class="footer-inner">
+                <p><strong>REX</strong> · MEV-EDS Report Extractor</p>
+                <p>
+                    Processamento local · Nenhum laudo é enviado à internet
+                </p>
+            </div>
+        </footer>
+
+        <div
+            id="announcer"
+            class="skip-link"
+            aria-live="polite"
+            aria-atomic="true"
+        ></div>
+
+        <script>
+            (() => {
+                const views = {
+                    setup: document.querySelector("#setup-view"),
+                    processing: document.querySelector("#processing-view"),
+                    fileError: document.querySelector("#file-error-view"),
+                    connectionError: document.querySelector(
+                        "#connection-error-view",
+                    ),
+                    success: document.querySelector("#success-view"),
+                };
+                const fileInput = document.querySelector("#file-input");
+                const picker = document.querySelector("#source-picker");
+                const selected = document.querySelector("#selected-file");
+                const selectedName = document.querySelector("#selected-name");
+                const selectedMeta = document.querySelector("#selected-meta");
+                const configCard = document.querySelector("#config-card");
+                const configLockedNote = document.querySelector(
+                    "#config-locked-note",
+                );
+                const xlsxOptions = document.querySelector("#xlsx-options");
+                const processButton = document.querySelector("#process-button");
+                const actionHint = document.querySelector("#action-hint");
+                const announcer = document.querySelector("#announcer");
+                const state = {
+                    file: null,
+                    mode: "consolidated",
+                    busy: false,
+                };
+
+                function announce(message) {
+                    announcer.textContent = message;
+                }
+
+                function showView(name, step) {
+                    Object.entries(views).forEach(([key, node]) => {
+                        node.hidden = key !== name;
+                    });
+                    document
+                        .querySelectorAll(".step")
+                        .forEach((node, index) => {
+                            const number = index + 1;
+                            node.classList.toggle("is-active", number === step);
+                            node.classList.toggle("is-complete", number < step);
+                            const badge = node.querySelector(".step-number");
+                            badge.textContent =
+                                number < step ? "✓" : String(number);
+                        });
+                    const target =
+                        views[name].querySelector("h2") || views[name];
+                    target.setAttribute("tabindex", "-1");
+                    target.focus({ preventScroll: true });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+
+                function setFile(file) {
+                    state.file = file;
+                    picker.hidden = true;
+                    selected.hidden = false;
+                    selectedName.textContent = file.name;
+                    const size = (file.size / 1024 / 1024).toLocaleString(
+                        "pt-BR", { maximumFractionDigits: 1 },
+                    );
+                    selectedMeta.textContent = `${size} MB · Documento do Word`;
+                    configCard.classList.remove("is-locked");
+                    configCard.setAttribute("aria-disabled", "false");
+                    configLockedNote.hidden = true;
+                    xlsxOptions.disabled = false;
+                    processButton.disabled = false;
+                    actionHint.textContent =
+                        "Revise o laudo e o formato antes de iniciar.";
+                    updateMode();
+                    announce(`Laudo selecionado: ${file.name}`);
+                    const stepOne = document.querySelector(
+                        '.step[data-step="1"]',
+                    );
+                    const stepTwo = document.querySelector(
+                        '.step[data-step="2"]',
+                    );
+                    stepOne.classList.remove("is-active");
+                    stepOne.classList.add("is-complete");
+                    stepOne.querySelector(".step-number").textContent = "✓";
+                    stepTwo.classList.remove("is-locked");
+                    stepTwo.classList.add("is-active");
+                }
+
+                function clearFile() {
+                    state.file = null;
+                    fileInput.value = "";
+                    picker.hidden = false;
+                    selected.hidden = true;
+                    configCard.classList.add("is-locked");
+                    configCard.setAttribute("aria-disabled", "true");
+                    configLockedNote.hidden = false;
+                    xlsxOptions.disabled = true;
+                    processButton.disabled = true;
+                    actionHint.textContent =
+                        "Selecione um laudo para continuar.";
+                    document
+                        .querySelectorAll(".step")
+                        .forEach((node, index) => {
+                            node.classList.toggle("is-active", index === 0);
+                            node.classList.remove("is-complete");
+                            node.classList.toggle("is-locked", index === 1);
+                            node.querySelector(".step-number").textContent =
+                                String(index + 1);
+                        });
+                }
+
+                function updateMode() {
+                    state.mode = document.querySelector(
+                        'input[name="xlsx-mode"]:checked',
+                    ).value;
+                }
+
+                function reset() {
+                    if (state.busy) return;
+                    showView("setup", 1);
+                    clearFile();
+                }
+
+                fileInput.addEventListener("change", () => {
+                    const file = fileInput.files[0];
+                    if (!file) return;
+                    const max = 250 * 1024 * 1024;
+                    const isDocx = file.name.toLowerCase().endsWith(".docx");
+                    if (!isDocx || file.size === 0 || file.size > max) {
+                        document.querySelector("#file-error-copy").textContent =
+                            !isDocx
+                                ? "O arquivo escolhido não é um DOCX. Localize um laudo com a extensão .docx e tente novamente."
+                                : file.size === 0
+                                  ? "O arquivo escolhido está vazio. Localize um DOCX que contenha o laudo e tente novamente."
+                                  : "O arquivo excede o limite de 250 MB. Escolha um laudo menor para continuar.";
+                        showView("fileError", 1);
+                        announce("Arquivo não aceito.");
+                        return;
+                    }
+                    setFile(file);
+                });
+
+                document
+                    .querySelector("#change-file")
+                    .addEventListener("click", clearFile);
+                document
+                    .querySelectorAll('input[name="xlsx-mode"]')
+                    .forEach((radio) =>
+                        radio.addEventListener("change", updateMode),
+                    );
+
+                function showExtractionError(message) {
+                    document.querySelector("#file-error-copy").textContent = message;
+                    showView("fileError", 1);
+                    announce(message);
+                }
+
+                function renderResults(data) {
+                    document.querySelector("#elapsed-time").textContent =
+                        `${data.elapsed.toLocaleString("pt-BR")} s`;
+                    document.querySelector("#samples-count").textContent = data.samples_count;
+                    document.querySelector("#points-count").textContent = data.points_count;
+                    document.querySelector("#rows-count").textContent = data.rows_count;
+                    document.querySelector("#elements-count").textContent = data.elements.length;
+                    document.querySelector("#xlsx-name").textContent = data.excel_filename;
+                    document.querySelector("#csv-name").textContent = data.csv_filename;
+                    document.querySelector("#xlsx-meta").textContent =
+                        `XLSX · ${state.mode === "per-sample" ? "uma aba por amostra" : "uma aba consolidada"}`;
+
+                    const elementsList = document.querySelector("#elements-list");
+                    elementsList.replaceChildren();
+                    data.elements.forEach((element) => {
+                        const item = document.createElement("li");
+                        item.className = "element-chip";
+                        item.textContent = element;
+                        elementsList.appendChild(item);
+                    });
+
+                    const previewBody = document.querySelector("#preview-body");
+                    previewBody.replaceChildren();
+                    const fields = [
+                        "Amostra", "Micrografia", "Serie", "Ponto", "Elemento",
+                        "TipoLinha", "PercentualPeso", "SigmaPeso", "PercentualAtomico",
+                    ];
+                    data.preview.forEach((row) => {
+                        const tr = document.createElement("tr");
+                        fields.forEach((field, index) => {
+                            const td = document.createElement("td");
+                            if ([2, 3, 6, 7, 8].includes(index)) td.className = "num";
+                            td.textContent = row[field] ?? "";
+                            tr.appendChild(td);
+                        });
+                        previewBody.appendChild(tr);
+                    });
+                    if (data.preview.length === 0) {
+                        const tr = document.createElement("tr");
+                        const td = document.createElement("td");
+                        td.colSpan = fields.length;
+                        td.textContent = "Nenhuma medição disponível para prévia.";
+                        tr.appendChild(td);
+                        previewBody.appendChild(tr);
+                    }
+                    document.querySelector("#preview-count").textContent =
+                        `${data.preview.length} de ${data.rows_count} medições`;
+                }
+
+                async function extract() {
+                    if (!state.file || state.busy) return;
+                    state.busy = true;
+                    processButton.disabled = true;
+                    document.querySelector("#processing-name").textContent = state.file.name;
+                    showView("processing", 3);
+                    announce("Extração iniciada. Aguarde a resposta do extrator.");
+                    try {
+                        const response = await fetch("/api/extract-upload", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "X-REX-Filename": encodeURIComponent(state.file.name),
+                                "X-REX-Workbook-Mode": state.mode,
+                            },
+                            body: state.file,
+                        });
+                        const data = await response.json();
+                        if (!response.ok || data.error) {
+                            showExtractionError(data.error || "Não foi possível concluir a extração.");
+                            return;
+                        }
+                        renderResults(data);
+                        showView("success", 4);
+                        announce("Extração concluída. Os resultados estão disponíveis.");
+                    } catch (error) {
+                        showView("connectionError", 3);
+                        announce("Não foi possível obter resposta do serviço local.");
+                    } finally {
+                        state.busy = false;
+                        processButton.disabled = !state.file;
+                    }
+                }
+
+                processButton.addEventListener("click", extract);
+                document.querySelector("#retry-connection").addEventListener("click", extract);
+                document.querySelector("#connection-status").addEventListener("click", async () => {
+                    try {
+                        const response = await fetch("/", { cache: "no-store" });
+                        announce(response.ok ? "Serviço local disponível." : "Serviço local indisponível.");
+                    } catch (error) {
+                        announce("Serviço local indisponível.");
+                    }
+                });
+                document
+                    .querySelectorAll("[data-back]")
+                    .forEach((button) =>
+                        button.addEventListener("click", reset),
+                    );
+                document.querySelectorAll("[data-reset]").forEach((button) =>
+                    button.addEventListener("click", (event) => {
+                        event.preventDefault();
+                        reset();
+                    }),
+                );
+
+            })();
+        </script>
+    </body>
+</html>
